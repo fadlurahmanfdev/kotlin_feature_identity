@@ -12,13 +12,13 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.fadlurahmanfdev.example.data.FeatureModel
 import com.fadlurahmanfdev.example.presentation.ListExampleAdapter
-import com.fadlurahmanfdev.kotlin_feature_identity.core.callback.AuthenticationCallBack
-import com.fadlurahmanfdev.kotlin_feature_identity.core.callback.SecureAuthenticationDecryptCallBack
-import com.fadlurahmanfdev.kotlin_feature_identity.core.callback.SecureAuthenticationEncryptCallBack
-import com.fadlurahmanfdev.kotlin_feature_identity.core.enums.FeatureAuthenticatorType
-import com.fadlurahmanfdev.kotlin_feature_identity.core.exception.FeatureIdentityException
-import com.fadlurahmanfdev.kotlin_feature_identity.FeatureAuthentication
-import com.fadlurahmanfdev.kotlin_feature_identity.data.repository.FeatureAuthenticationRepository
+import com.fadlurahmanfdev.mark_biometric.core.callback.AuthenticationCallBack
+import com.fadlurahmanfdev.mark_biometric.core.callback.SecureAuthenticationDecryptCallBack
+import com.fadlurahmanfdev.mark_biometric.core.callback.SecureAuthenticationEncryptCallBack
+import com.fadlurahmanfdev.mark_biometric.core.enums.FeatureAuthenticatorType
+import com.fadlurahmanfdev.mark_biometric.core.exception.FeatureIdentityException
+import com.fadlurahmanfdev.mark_biometric.FeatureAuthentication
+import com.fadlurahmanfdev.mark_biometric.data.repository.FeatureAuthenticationRepository
 import javax.crypto.Cipher
 
 class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
