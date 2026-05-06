@@ -12,17 +12,16 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.fadlurahmanfdev.example.data.FeatureModel
 import com.fadlurahmanfdev.example.presentation.ListExampleAdapter
-import com.fadlurahmanfdev.mark_biometric.core.callback.AuthenticationCallBack
-import com.fadlurahmanfdev.mark_biometric.core.callback.SecureAuthenticationDecryptCallBack
-import com.fadlurahmanfdev.mark_biometric.core.callback.SecureAuthenticationEncryptCallBack
-import com.fadlurahmanfdev.mark_biometric.core.enums.FeatureAuthenticatorType
-import com.fadlurahmanfdev.mark_biometric.core.exception.FeatureIdentityException
-import com.fadlurahmanfdev.mark_biometric.FeatureAuthentication
-import com.fadlurahmanfdev.mark_biometric.data.repository.FeatureAuthenticationRepository
+import com.fadlurahmanfdev.mark_authenticator.core.callback.AuthenticationCallBack
+import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthenticationDecryptCallBack
+import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthenticationEncryptCallBack
+import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticatorMethod
+import com.fadlurahmanfdev.mark_authenticator.core.exception.FeatureIdentityException
+import com.fadlurahmanfdev.mark_authenticator.MarkAuthenticator
 import javax.crypto.Cipher
 
 class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
-    lateinit var featureAuthentication: FeatureAuthenticationRepository
+    lateinit var markAuthenticator: MarkAuthenticator
 
     private val features: List<FeatureModel> = listOf<FeatureModel>(
         FeatureModel(
@@ -127,7 +126,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
         adapter.setList(features)
         adapter.setHasStableIds(true)
         rv.adapter = adapter
-        featureAuthentication = FeatureAuthentication(this)
+        markAuthenticator = MarkAuthenticator(this)
     }
 
     private lateinit var cancellationSignal: CancellationSignal
@@ -138,7 +137,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
     override fun onClicked(item: FeatureModel) {
         when (item.enum) {
             "DEVICE_SUPPORT_FINGERPRINT" -> {
-                val isSupported = featureAuthentication.isDeviceSupportFingerprint()
+                val isSupported = markAuthenticator.isDeviceSupportFingerprint()
                 Log.d(
                     this::class.java.simpleName,
                     "is device support fingerprint: $isSupported"
@@ -146,7 +145,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
             }
 
             "DEVICE_SUPPORT_FACE_AUTHENTICATION" -> {
-                val isSupported = featureAuthentication.isDeviceSupportFaceAuth()
+                val isSupported = markAuthenticator.isDeviceSupportFaceAuth()
                 Log.d(
                     this::class.java.simpleName,
                     "is device support face auth: $isSupported"
@@ -154,7 +153,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
             }
 
             "DEVICE_SUPPORT_BIOMETRIC" -> {
-                val isSupported = featureAuthentication.isDeviceSupportBiometric()
+                val isSupported = markAuthenticator.isDeviceSupportBiometric()
                 Log.d(
                     this::class.java.simpleName,
                     "is device support biometric: $isSupported"
@@ -163,7 +162,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
 
             "IS_FINGERPRINT_ENROLLED" -> {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    val isEnrolled = featureAuthentication.isFingerprintEnrolled()
+                    val isEnrolled = markAuthenticator.isFingerprintEnrolled()
                     Log.d(
                         this::class.java.simpleName,
                         "is fingerprint enrolled: $isEnrolled"
@@ -173,25 +172,25 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
 
             "CHECK_BIOMETRIC_AUTHENTICATION_STATUS" -> {
                 val status =
-                    featureAuthentication.checkAuthenticatorStatus(FeatureAuthenticatorType.BIOMETRIC)
+                    markAuthenticator.checkAuthenticatorStatus(MarkAuthenticatorMethod.BIOMETRIC)
                 Log.d(
                     this::class.java.simpleName,
-                    "biometric authentication status: $status"
+                    "App-Example-LOG %%% biometric authentication status: $status"
                 )
             }
 
             "CHECK_DEVICE_CREDENTIAL_AUTHENTICATION_STATUS" -> {
                 val status =
-                    featureAuthentication.checkAuthenticatorStatus(FeatureAuthenticatorType.DEVICE_CREDENTIAL)
+                    markAuthenticator.checkAuthenticatorStatus(MarkAuthenticatorMethod.DEVICE_CREDENTIAL)
                 Log.d(
                     this::class.java.simpleName,
-                    "device credential authentication status: $status"
+                    "App-Example-LOG %%% device credential authenticator status: $status"
                 )
             }
 
             "CAN_AUTHENTICATE_USING_BIOMETRIC" -> {
                 val canAuthenticate =
-                    featureAuthentication.canAuthenticate(FeatureAuthenticatorType.BIOMETRIC)
+                    markAuthenticator.canAuthenticate(MarkAuthenticatorMethod.BIOMETRIC)
                 Log.d(
                     this::class.java.simpleName,
                     "can authenticate using biometric: $canAuthenticate"
@@ -200,7 +199,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
 
             "CAN_AUTHENTICATE_USING_DEVICE_CREDENTIAL" -> {
                 val canAuthenticate =
-                    featureAuthentication.canAuthenticate(FeatureAuthenticatorType.DEVICE_CREDENTIAL)
+                    markAuthenticator.canAuthenticate(MarkAuthenticatorMethod.DEVICE_CREDENTIAL)
                 Log.d(
                     this::class.java.simpleName,
                     "can authenticate using device credential: $canAuthenticate"
@@ -209,7 +208,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
 
             "PROMPT_WEAK_BIOMETRIC" -> {
                 cancellationSignal = CancellationSignal()
-                featureAuthentication.authenticateBiometric(
+                markAuthenticator.authenticateBiometric(
                     title = "Title - Weak Biometric",
                     description = "Desc - Weak Biometric",
                     subTitle = "SubTitle - Weak Biometric",
@@ -268,7 +267,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
 
             "PROMPT_CREDENTIAL_BIOMETRIC" -> {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    featureAuthentication.authenticateDeviceCredential(
+                    markAuthenticator.authenticateDeviceCredential(
                         title = "Title - Device Credential",
                         subTitle = "Sub Title - Device Credential",
                         description = "Desc - Device Credential",
@@ -317,16 +316,16 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
             }
 
             "IS_BIOMETRIC_CHANGED" -> {
-                val isBiometricChanged = featureAuthentication.isBiometricChanged("fadlurahmanfdev")
+                val isBiometricChanged = markAuthenticator.isBiometricChanged("fadlurahmanfdev")
                 Log.d(this::class.java.simpleName, "is biometric changed: $isBiometricChanged")
             }
 
             "DELETE_SECRET_KEY" -> {
-                featureAuthentication.deleteSecretKey("fadlurahmanfdev")
+                markAuthenticator.deleteSecretKey("fadlurahmanfdev")
             }
 
             "PROMPT_ENCRYPT_BIOMETRIC" -> {
-                featureAuthentication.secureAuthenticateBiometricEncrypt(
+                markAuthenticator.secureAuthenticateBiometricEncrypt(
                     title = "Title - Encrypt Biometric",
                     subTitle = "Sub Title - Encrypt Biometric",
                     description = "Desc - Encrypt Biometric",
@@ -338,7 +337,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
                             cipher: Cipher,
                             encodedIVKey: String
                         ) {
-                            encodedEncryptedPassword = featureAuthentication.encrypt(cipher, plainText)
+                            encodedEncryptedPassword = markAuthenticator.encrypt(cipher, plainText)
                             this@MainActivity.encodedIvKey = encodedIVKey
                             Log.d(
                                 this@MainActivity::class.java.simpleName,
@@ -388,7 +387,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
             }
 
             "PROMPT_DECRYPT_BIOMETRIC" -> {
-                featureAuthentication.secureAuthenticateBiometricDecrypt(
+                markAuthenticator.secureAuthenticateBiometricDecrypt(
                     alias = "fadlurahmanfdev",
                     encodedIVKey = encodedIvKey,
                     title = "Title - Decrypt Biometric",
@@ -412,7 +411,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
 //                            )
 //                            toast.show()
 
-                            val plainPassword = featureAuthentication.decrypt(cipher, encodedEncryptedPassword)
+                            val plainPassword = markAuthenticator.decrypt(cipher, encodedEncryptedPassword)
                             Log.d(
                                 this@MainActivity::class.java.simpleName,
                                 "decrypted password: $plainPassword"
