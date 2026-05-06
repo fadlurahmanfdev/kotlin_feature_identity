@@ -9,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "com.fadlurahmanfdev.mark_biometric"
+    namespace = "com.fadlurahmanfdev.mark_authenticator"
     compileSdk = 34
 
     defaultConfig {
@@ -49,12 +49,12 @@ mavenPublishing {
     publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
     signAllPublications()
 
-    coordinates("com.fadlurahmanfdev", "kotlin_feature_identity", "0.0.1-beta")
+    coordinates("com.fadlurahmanfdev", "mark_authenticator", "0.0.1")
 
     pom {
-        name.set("Kotlin Library Feature Identity")
+        name.set("Mark Authenticator")
         description.set("A comprehensive identity library for Android, designed to provide seamless integration with features like biometric authentication, passkeys, credential management, and more, based on Android's identity framework.")
-        inceptionYear.set("2024")
+        inceptionYear.set("2026")
         url.set("https://github.com/fadlurahmanfdev/kotlin_feature_identity/")
         licenses {
             license {
