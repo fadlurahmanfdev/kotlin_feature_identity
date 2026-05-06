@@ -3,8 +3,7 @@ package com.fadlurahmanfdev.mark_authenticator.core.callback
 import com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException
 import javax.crypto.Cipher
 
-interface MarkAuthenticatorCallBack {
-    fun onNegativeButtonClicked(which: Int) {}
+interface MarkAuthenticationCallBack {
     fun onFailedAuthenticate()
 
     fun onErrorAuthenticate(exception: MarkAuthenticatorException)
@@ -12,14 +11,14 @@ interface MarkAuthenticatorCallBack {
     fun onCanceled() {}
 }
 
-interface AuthenticationCallBack : MarkAuthenticatorCallBack {
+interface WeakAuthenticationCallBack : MarkAuthenticationCallBack {
     fun onSuccessAuthenticate()
 }
 
-interface SecureAuthenticationEncryptCallBack : MarkAuthenticatorCallBack {
+interface SecureAuthenticationEncryptCallBack : MarkAuthenticationCallBack {
     fun onSuccessAuthenticate(cipher: Cipher, encodedIVKey: String)
 }
 
-interface SecureAuthenticationDecryptCallBack : MarkAuthenticatorCallBack {
+interface SecureAuthenticationDecryptCallBack : MarkAuthenticationCallBack {
     fun onSuccessAuthenticate(cipher: Cipher)
 }

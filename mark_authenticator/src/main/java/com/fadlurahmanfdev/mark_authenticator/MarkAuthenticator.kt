@@ -1,5 +1,6 @@
 package com.fadlurahmanfdev.mark_authenticator
 
+import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.DialogInterface
@@ -19,8 +20,9 @@ import android.util.Base64
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import com.fadlurahmanfdev.mark_authenticator.base.BaseMarkAuthenticator
-import com.fadlurahmanfdev.mark_authenticator.core.callback.AuthenticationCallBack
+import com.fadlurahmanfdev.mark_authenticator.core.callback.WeakAuthenticationCallBack
 import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthenticationDecryptCallBack
 import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthenticationEncryptCallBack
 import com.fadlurahmanfdev.mark_authenticator.core.constant.ErrorConstant
@@ -29,13 +31,11 @@ import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticationType
 import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticatorMethod
 import com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException
 import java.security.InvalidKeyException
-import java.security.KeyStore
 import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.IvParameterSpec
 
 class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() {
 
@@ -161,22 +161,27 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
     }
 
     /**
-     * Checks if the device has at least one fingerprint enrolled.
+     * Checks if the device has at least one biometric enrolled.
      *
      * @return true if a fingerprint is enrolled; false otherwise.
      */
-    @RequiresApi(Build.VERSION_CODES.M)
-    override fun isFingerprintEnrolled(): Boolean = fingerprintManager.hasEnrolledFingerprints()
+    override fun isBiometricEnrolled(): Boolean =
+        checkAuthenticatorStatus(MarkAuthenticatorMethod.BIOMETRIC) == MarkAuthenticationStatus.SUCCESS
 
     /**
      * Checks if the device has a secure credential enrolled (e.g., PIN, password, pattern).
      *
      * @return true if the device has a secure credential enrolled; false otherwise.
      */
-    @RequiresApi(Build.VERSION_CODES.M)
-    override fun isDeviceCredentialEnrolled(): Boolean = keyguardManager.isDeviceSecure
+    override fun isDeviceCredentialEnrolled(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            keyguardManager.isDeviceSecure
+        } else {
+            checkAuthenticatorStatus(MarkAuthenticatorMethod.DEVICE_CREDENTIAL) == MarkAuthenticationStatus.SUCCESS
+        }
+    }
 
-    private fun checkAuthenticatorStatus(
+    private fun checkAuthenticatorStatusByAuthenticatorType(
         type: MarkAuthenticationType
     ): MarkAuthenticationStatus {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -216,7 +221,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             when (type) {
                 MarkAuthenticationType.BIOMETRIC_WEAK, MarkAuthenticationType.BIOMETRIC_STRONG -> {
-                    val isEnrolled = isFingerprintEnrolled()
+                    val isEnrolled = isBiometricEnrolled()
                     return if (isEnrolled) {
                         MarkAuthenticationStatus.SUCCESS
                     } else {
@@ -253,8 +258,10 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
      */
     override fun checkAuthenticatorStatus(method: MarkAuthenticatorMethod): MarkAuthenticationStatus {
         return when (method) {
-            MarkAuthenticatorMethod.BIOMETRIC -> checkAuthenticatorStatus(type = MarkAuthenticationType.BIOMETRIC_WEAK)
-            MarkAuthenticatorMethod.DEVICE_CREDENTIAL -> checkAuthenticatorStatus(type = MarkAuthenticationType.DEVICE_CREDENTIAL)
+            MarkAuthenticatorMethod.BIOMETRIC -> checkAuthenticatorStatusByAuthenticatorType(type = MarkAuthenticationType.BIOMETRIC_WEAK)
+            MarkAuthenticatorMethod.DEVICE_CREDENTIAL -> checkAuthenticatorStatusByAuthenticatorType(
+                type = MarkAuthenticationType.DEVICE_CREDENTIAL
+            )
         }
     }
 
@@ -269,7 +276,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
      * [MarkAuthenticationStatus.UNKNOWN] if an unknown status is encountered.
      */
     override fun checkSecureAuthentication(): MarkAuthenticationStatus {
-        return checkAuthenticatorStatus(type = MarkAuthenticationType.BIOMETRIC_STRONG)
+        return checkAuthenticatorStatusByAuthenticatorType(type = MarkAuthenticationType.BIOMETRIC_STRONG)
     }
 
     /**
@@ -308,26 +315,26 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
      * - **onNegativeButtonClicked**: Called when the user presses the cancel button (negative action),
      *   which dismisses the authentication prompt and halts the authentication process.
      */
-    @RequiresApi(Build.VERSION_CODES.R)
     override fun authenticateDeviceCredential(
+        activity: FragmentActivity,
         title: String,
         subTitle: String?,
         description: String,
         negativeText: String,
         confirmationRequired: Boolean,
-        callBack: AuthenticationCallBack
+        callBack: WeakAuthenticationCallBack
     ) {
-        generalAuthenticateBiometricAndroidP(
-            title = title,
-            subTitle = subTitle,
-            description = description,
-            authenticator = BiometricManager.Authenticators.DEVICE_CREDENTIAL,
-            negativeText = negativeText,
-            setConfirmationRequired = confirmationRequired,
+        generalAuthenticateBiometricAndroidX(
+            activity = activity,
             cryptoObject = null,
-            negativeButtonCallback = DialogInterface.OnClickListener { dialog, which -> },
-            callback = object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+            confirmationRequired = confirmationRequired,
+            authenticator = androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL,
+            title = title,
+            description = description,
+            subTitle = subTitle,
+            negativeText = negativeText,
+            callback = object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
                     callBack.onSuccessAuthenticate()
                 }
@@ -339,16 +346,18 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
 
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
-                    if (errorCode == 10) {
+                    if (errorCode == 13) {
                         callBack.onCanceled()
                     } else {
                         callBack.onErrorAuthenticate(
                             MarkAuthenticatorException(
-                                code = "$errorCode",
-                                message = errString.toString()
+                                code = errorCode.toString(),
+                                message = errString.toString(),
+                                cause = null,
                             )
                         )
                     }
+
                 }
             }
         )
@@ -380,91 +389,49 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
      *   cancel button. The prompt is dismissed, and the authentication process is stopped.
      */
     override fun authenticateBiometric(
+        activity: FragmentActivity,
         title: String,
         subTitle: String?,
         description: String,
         negativeText: String,
         confirmationRequired: Boolean,
-        callBack: AuthenticationCallBack
+        callBack: WeakAuthenticationCallBack
     ) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            var authenticator = -1
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                authenticator = BiometricManager.Authenticators.BIOMETRIC_WEAK
-            }
-            generalAuthenticateBiometricAndroidP(
-                title = title,
-                subTitle = subTitle,
-                description = description,
-                authenticator = authenticator,
-                negativeText = negativeText,
-                setConfirmationRequired = confirmationRequired,
-                cryptoObject = null,
-                negativeButtonCallback = DialogInterface.OnClickListener { dialog, which ->
-                    callBack.onNegativeButtonClicked(which)
-                },
-                callback = object : BiometricPrompt.AuthenticationCallback() {
-                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                        super.onAuthenticationSucceeded(result)
-                        callBack.onSuccessAuthenticate()
-                    }
-
-                    override fun onAuthenticationFailed() {
-                        super.onAuthenticationFailed()
-                        callBack.onFailedAuthenticate()
-                    }
-
-                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                        super.onAuthenticationError(errorCode, errString)
-                        if (errorCode == 10) {
-                            callBack.onCanceled()
-                        } else {
-                            callBack.onErrorAuthenticate(
-                                MarkAuthenticatorException(
-                                    code = "$errorCode",
-                                    message = errString.toString()
-                                )
-                            )
-                        }
-                    }
+        generalAuthenticateBiometricAndroidX(
+            activity = activity,
+            cryptoObject = null,
+            confirmationRequired = confirmationRequired,
+            authenticator = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK,
+            title = title,
+            subTitle = subTitle,
+            description = description,
+            negativeText = negativeText,
+            callback = object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                    super.onAuthenticationSucceeded(result)
+                    callBack.onSuccessAuthenticate()
                 }
-            )
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            generalAuthenticateAndroidM(
-                null,
-                object : FingerprintManager.AuthenticationCallback() {
-                    @Deprecated("Deprecated in Java")
-                    override fun onAuthenticationSucceeded(result: FingerprintManager.AuthenticationResult?) {
-                        super.onAuthenticationSucceeded(result)
-                        callBack.onSuccessAuthenticate()
-                    }
 
-                    @Deprecated("Deprecated in Java")
-                    override fun onAuthenticationFailed() {
-                        super.onAuthenticationFailed()
-                        callBack.onFailedAuthenticate()
-                    }
+                override fun onAuthenticationFailed() {
+                    super.onAuthenticationFailed()
+                    callBack.onFailedAuthenticate()
+                }
 
-                    @Deprecated("Deprecated in Java")
-                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
-                        super.onAuthenticationError(errorCode, errString)
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    super.onAuthenticationError(errorCode, errString)
+                    if (errorCode == 13) {
+                        callBack.onCanceled()
+                    } else {
                         callBack.onErrorAuthenticate(
                             MarkAuthenticatorException(
                                 code = "$errorCode",
-                                message = errString?.toString(),
+                                message = errString.toString()
                             )
                         )
                     }
                 }
-            )
-        } else {
-            callBack.onErrorAuthenticate(
-                MarkAuthenticatorException(
-                    code = ErrorConstant.OS_NOT_SUPPORTED,
-                    message = "OS not supported"
-                )
-            )
-        }
+            }
+        )
     }
 
     /**
@@ -514,41 +481,26 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
     }
 
     /**
-     * Securely authenticate using biometric encryption.
+     * Secure encrypt authenticate using biometric encryption with Default Cipher & Secret Key.
+     *
+     * Cipher get from [cipher]
+     * Secret Key get from [getSecretKey]
      *
      * This function performs biometric authentication with encryption, using a specified alias to retrieve or generate
      * a secret key. The encryption is achieved through a cipher initialized with the secret key. If the key becomes invalid
      * (e.g., due to a security change like adding a new fingerprint), the key must be deleted and regenerated.
      *
-     * @param alias The alias of the secret key used for encryption. If the key is invalidated, the user must delete it
-     *              and generate a new one to continue using secure authentication.
+     * @param activity Activity where the biometric prompt happened.
+     * @param alias Key Identifier
      * @param title The title displayed in the biometric prompt.
-     * @param subTitle The sub-title displayed in the biometric prompt.
+     * @param subTitle The subtitle displayed in the biometric prompt.
      * @param description The description shown in the biometric prompt.
      * @param negativeText The text for the cancel button in the prompt.
      * @param confirmationRequired Whether confirmation is required before successful authentication.
-     * @param callBack The callback to handle authentication results, including:
-     *
-     * - **onSuccessAuthenticate**: Called when biometric authentication is successful. This callback provides
-     *   the encrypted cipher and IV (Initialization Vector) in Base64 format, allowing further secure operations.
-     *
-     * - **onFailedAuthenticate**: Called when biometric authentication fails, typically due to unrecognized biometric data.
-     *   The user can attempt authentication again if desired.
-     *
-     * - **onErrorAuthenticate**: Called when an error occurs during authentication. Provides a code and message detailing
-     *   the error, such as:
-     *   - **Error Constant `KEY_PERMANENTLY_INVALIDATED`**: This occurs if the key has been invalidated. For example, adding
-     *     or removing fingerprints will invalidate the key, requiring the user to delete the existing key and generate a
-     *     new one with the same alias.
-     *   - **Error Constant `CIPHER_MISSING`**: Indicates a missing cipher, which is required for secure authentication.
-     *   - **Error Constant `OS_NOT_SUPPORTED`**: Returned when the device OS version does not support the necessary
-     *     biometric functionality.
-     *   - **General Exception**: If another exception is caught, an error message will indicate the issue (e.g., encryption setup errors).
-     *
-     * - **onNegativeButtonClicked**: Called when the user presses the cancel button on the biometric prompt, halting the
-     *   authentication process.
+     * @param callBack The callback to handle authentication results.
      */
     override fun secureAuthenticateBiometricEncrypt(
+        activity: FragmentActivity,
         alias: String,
         title: String,
         subTitle: String?,
@@ -568,6 +520,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
         cipher.init(Cipher.ENCRYPT_MODE, secretKey)
 
         secureAuthenticateBiometricEncrypt(
+            activity = activity,
             title = title,
             cipher = cipher,
             secretKey = secretKey,
@@ -579,7 +532,25 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
         )
     }
 
-    fun secureAuthenticateBiometricEncrypt(
+    /**
+     * Securely encrypt authenticate using biometric encryption with custom Cipher & Secret Key.
+     *
+     * This function performs biometric authentication with encryption, using a specified alias to retrieve or generate
+     * a secret key. The encryption is achieved through a cipher initialized with the secret key. If the key becomes invalid
+     * (e.g., due to a security change like adding a new fingerprint), the key must be deleted and regenerated.
+     *
+     * @param activity Activity where the biometric prompt happened.
+     * @param title The title displayed in the biometric prompt.
+     * @param cipher The cipher from crypto object for handling cryptography data.
+     * @param secretKey The secret key used for keep the data secured.
+     * @param subTitle The subtitle displayed in the biometric prompt.
+     * @param description The description shown in the biometric prompt.
+     * @param negativeText The text for the cancel button in the prompt.
+     * @param confirmationRequired Whether confirmation is required before successful authentication.
+     * @param callBack The callback to handle authentication results.
+     */
+    override fun secureAuthenticateBiometricEncrypt(
+        activity: FragmentActivity,
         title: String,
         cipher: Cipher,
         secretKey: SecretKey,
@@ -591,51 +562,46 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
     ) {
         try {
             cipher.init(Cipher.ENCRYPT_MODE, secretKey)
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                generalAuthenticateBiometricAndroidP(
-                    title = title,
-                    subTitle = subTitle,
-                    description = description,
-                    authenticator = BiometricManager.Authenticators.BIOMETRIC_STRONG,
-                    negativeText = negativeText,
-                    setConfirmationRequired = confirmationRequired,
-                    cryptoObject = CryptoObject(cipher),
-                    negativeButtonCallback = DialogInterface.OnClickListener { dialog, which ->
-                        callBack.onNegativeButtonClicked(which)
-                    },
-                    callback = object : BiometricPrompt.AuthenticationCallback() {
-                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                            super.onAuthenticationSucceeded(result)
-                            if (result.cryptoObject?.cipher == null) {
-                                callBack.onErrorAuthenticate(
-                                    MarkAuthenticatorException(
-                                        code = ErrorConstant.CIPHER_MISSING,
-                                        message = "Cipher missing for secure authentication"
-                                    )
+            generalAuthenticateBiometricAndroidX(
+                activity = activity,
+                cryptoObject = androidx.biometric.BiometricPrompt.CryptoObject(cipher),
+                confirmationRequired = confirmationRequired,
+                authenticator = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG,
+                title = title,
+                subTitle = subTitle,
+                description = description,
+                negativeText = negativeText,
+                callback = object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                        super.onAuthenticationSucceeded(result)
+                        val cipherResult = result.cryptoObject?.cipher
+                        if (cipherResult == null) {
+                            callBack.onErrorAuthenticate(
+                                MarkAuthenticatorException(
+                                    code = ErrorConstant.CIPHER_MISSING,
+                                    message = "Cipher missing for secure authentication"
                                 )
-                                return
-                            }
-
-                            val cipherResult = result.cryptoObject!!.cipher
-                            val encodedIvKey =
-                                Base64.encodeToString(cipherResult!!.iv, Base64.NO_WRAP)
-                            callBack.onSuccessAuthenticate(
-                                cipherResult,
-                                encodedIvKey
                             )
+                            return
                         }
 
-                        override fun onAuthenticationFailed() {
-                            super.onAuthenticationFailed()
-                            callBack.onFailedAuthenticate()
-                        }
+                        val encodedIvKey = Base64.encodeToString(cipherResult.iv, Base64.NO_WRAP)
+                        callBack.onSuccessAuthenticate(cipher, encodedIvKey)
+                    }
 
-                        override fun onAuthenticationError(
-                            errorCode: Int,
-                            errString: CharSequence
-                        ) {
-                            super.onAuthenticationError(errorCode, errString)
+                    override fun onAuthenticationFailed() {
+                        super.onAuthenticationFailed()
+                        callBack.onFailedAuthenticate()
+                    }
+
+                    override fun onAuthenticationError(
+                        errorCode: Int,
+                        errString: CharSequence
+                    ) {
+                        super.onAuthenticationError(errorCode, errString)
+                        if (errorCode == 13) {
+                            callBack.onCanceled()
+                        } else {
                             callBack.onErrorAuthenticate(
                                 MarkAuthenticatorException(
                                     code = "$errorCode",
@@ -644,71 +610,16 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                             )
                         }
                     }
-                )
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                generalAuthenticateAndroidM(
-                    FingerprintManager.CryptoObject(cipher),
-                    object : FingerprintManager.AuthenticationCallback() {
-                        @Deprecated("Deprecated in Java")
-                        override fun onAuthenticationSucceeded(result: FingerprintManager.AuthenticationResult?) {
-                            super.onAuthenticationSucceeded(result)
-                            if (result?.cryptoObject?.cipher == null) {
-                                callBack.onErrorAuthenticate(
-                                    MarkAuthenticatorException(
-                                        code = ErrorConstant.CIPHER_MISSING,
-                                        message = "Cipher missing for secure authentication"
-                                    )
-                                )
-                                return
-                            }
-
-                            val cipherResult = result.cryptoObject.cipher
-                            val encodedIvKey =
-                                Base64.encodeToString(cipherResult.iv, Base64.NO_WRAP)
-                            callBack.onSuccessAuthenticate(
-                                cipherResult,
-                                encodedIvKey
-                            )
-                        }
-
-                        @Deprecated("Deprecated in Java")
-                        override fun onAuthenticationFailed() {
-                            super.onAuthenticationFailed()
-                            callBack.onFailedAuthenticate()
-                        }
-
-                        @Deprecated("Deprecated in Java")
-                        override fun onAuthenticationError(
-                            errorCode: Int,
-                            errString: CharSequence?
-                        ) {
-                            super.onAuthenticationError(errorCode, errString)
-                            callBack.onErrorAuthenticate(
-                                MarkAuthenticatorException(
-                                    code = "$errorCode",
-                                    message = errString?.toString(),
-                                )
-                            )
-                        }
-                    }
-                )
-            } else {
-                callBack.onErrorAuthenticate(
-                    MarkAuthenticatorException(
-                        code = ErrorConstant.OS_NOT_SUPPORTED,
-                        message = "OS not supported"
-                    )
-                )
-            }
-        } catch (e: MarkAuthenticatorException) {
-            callBack.onErrorAuthenticate(e)
-        } catch (e: Exception) {
+                }
+            )
+        } catch (e: Throwable) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (e is KeyPermanentlyInvalidatedException) {
                     callBack.onErrorAuthenticate(
                         MarkAuthenticatorException(
                             code = ErrorConstant.KEY_PERMANENTLY_INVALIDATED,
                             message = e.message,
+                            cause = e,
                         )
                     )
                     return
@@ -717,46 +628,34 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
             callBack.onErrorAuthenticate(
                 MarkAuthenticatorException(
                     code = ErrorConstant.UNABLE_SECURE_AUTHENTICATE,
-                    message = e.message,
+                    message = e.toString(),
+                    cause = e
                 )
             )
         }
     }
 
     /**
-     * Securely authenticate using biometric decryption.
+     * Secure decrypt authenticate using biometric encryption with Default Cipher & Secret Key.
      *
-     * This method decrypts data using a biometric-protected secret key. If the key is invalidated
-     * (e.g., due to biometric changes like adding a new fingerprint), it cannot be used for decryption.
-     * In such cases, users must generate a new key and re-encrypt the data.
+     * Cipher get from [cipher]
+     * Secret Key get from [getSecretKey]
      *
-     * @param alias The alias of the secret key used for decryption.
-     * @param encodedIVKey The IV key obtained from encryption, encoded as a string.
+     * This function performs biometric authentication with encryption, using a specified alias to retrieve or generate
+     * a secret key. The encryption is achieved through a cipher initialized with the secret key. If the key becomes invalid
+     * (e.g., due to a security change like adding a new fingerprint), the key must be deleted and regenerated.
+     *
+     * @param activity Activity where the biometric prompt happened.
+     * @param alias Key Identifier
      * @param title The title displayed in the biometric prompt.
-     * @param subTitle The sub-title displayed in the biometric prompt.
+     * @param subTitle The subtitle displayed in the biometric prompt.
      * @param description The description shown in the biometric prompt.
      * @param negativeText The text for the cancel button in the prompt.
      * @param confirmationRequired Whether confirmation is required before successful authentication.
-     * @param callBack The callback to handle authentication results, including the decrypted cipher.
-     *
-     * `callBack` provides the following methods:
-     * - `onSuccessAuthenticate(cipher: Cipher)`: Called when authentication is successful. The provided
-     *   `cipher` can be used to securely decrypt the data using the correct secret key.
-     * - `onErrorAuthenticate(exception: FeatureIdentityException)`: Called when an error occurs during
-     *   authentication. The exception details the cause of failure, such as:
-     *      - `ErrorConstant.SECRET_KEY_MISSING`: The required secret key is missing. Re-encryption
-     *        with a new key may be necessary.
-     *      - `ErrorConstant.CIPHER_MISSING`: Cipher was not properly initialized for secure decryption.
-     *      - `ErrorConstant.KEY_PERMANENTLY_INVALIDATED`: The key is invalidated due to biometric changes
-     *        (e.g., new fingerprint added). A new key must be generated to proceed.
-     *      - `ErrorConstant.UNABLE_SECURE_AUTHENTICATE`: A generic error, often caused by device or
-     *        OS issues.
-     * - `onFailedAuthenticate()`: Called when biometric authentication fails but no critical error
-     *   occurs. This typically means the user did not authenticate successfully, and they may retry.
-     * - `onNegativeButtonClicked(which: Int)`: Called when the user taps the negative button (e.g.,
-     *   "Cancel") on the biometric prompt. This cancels the authentication process.
+     * @param callBack The callback to handle authentication results.
      */
     override fun secureAuthenticateBiometricDecrypt(
+        activity: FragmentActivity,
         alias: String,
         encodedIVKey: String,
         title: String,
@@ -775,6 +674,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
             )
 
         secureAuthenticateBiometricDecrypt(
+            activity = activity,
             encodedIVKey = encodedIVKey,
             cipher = cipher,
             secretKey = secretKey,
@@ -787,7 +687,25 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
         )
     }
 
-    fun secureAuthenticateBiometricDecrypt(
+    /**
+     * Securely decrypt authenticate using biometric encryption with custom Cipher & Secret Key.
+     *
+     * This function performs biometric authentication with encryption, using a specified alias to retrieve or generate
+     * a secret key. The encryption is achieved through a cipher initialized with the secret key. If the key becomes invalid
+     * (e.g., due to a security change like adding a new fingerprint), the key must be deleted and regenerated.
+     *
+     * @param activity Activity where the biometric prompt happened.
+     * @param title The title displayed in the biometric prompt.
+     * @param cipher The cipher from crypto object for handling cryptography data.
+     * @param secretKey The secret key used for keep the data secured.
+     * @param subTitle The subtitle displayed in the biometric prompt.
+     * @param description The description shown in the biometric prompt.
+     * @param negativeText The text for the cancel button in the prompt.
+     * @param confirmationRequired Whether confirmation is required before successful authentication.
+     * @param callBack The callback to handle authentication results.
+     */
+    override fun secureAuthenticateBiometricDecrypt(
+        activity: FragmentActivity,
         encodedIVKey: String,
         cipher: Cipher,
         secretKey: SecretKey,
@@ -803,45 +721,45 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
             val ivSpec = GCMParameterSpec(128, ivKey)
             cipher.init(Cipher.DECRYPT_MODE, secretKey, ivSpec)
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                generalAuthenticateBiometricAndroidP(
-                    title = title,
-                    subTitle = subTitle,
-                    description = description,
-                    authenticator = BiometricManager.Authenticators.BIOMETRIC_STRONG,
-                    negativeText = negativeText,
-                    setConfirmationRequired = confirmationRequired,
-                    cryptoObject = CryptoObject(cipher),
-                    negativeButtonCallback = DialogInterface.OnClickListener { dialog, which ->
-                        callBack.onNegativeButtonClicked(which)
-                    },
-                    callback = object : BiometricPrompt.AuthenticationCallback() {
-                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                            super.onAuthenticationSucceeded(result)
-                            if (result.cryptoObject?.cipher == null) {
-                                callBack.onErrorAuthenticate(
-                                    MarkAuthenticatorException(
-                                        code = ErrorConstant.CIPHER_MISSING,
-                                        message = "Cipher missing for secure authentication"
-                                    )
+            generalAuthenticateBiometricAndroidX(
+                activity = activity,
+                cryptoObject = androidx.biometric.BiometricPrompt.CryptoObject(cipher),
+                confirmationRequired = confirmationRequired,
+                authenticator = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG,
+                title = title,
+                subTitle = subTitle,
+                description = description,
+                negativeText = negativeText,
+                callback = object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                        super.onAuthenticationSucceeded(result)
+                        val cipherResult = result.cryptoObject?.cipher
+                        if (cipherResult == null) {
+                            callBack.onErrorAuthenticate(
+                                MarkAuthenticatorException(
+                                    code = ErrorConstant.CIPHER_MISSING,
+                                    message = "Cipher missing for secure authentication"
                                 )
-                                return
-                            }
-
-                            val cipherResult = result.cryptoObject!!.cipher
-                            callBack.onSuccessAuthenticate(cipherResult!!)
+                            )
+                            return
                         }
 
-                        override fun onAuthenticationFailed() {
-                            super.onAuthenticationFailed()
-                            callBack.onFailedAuthenticate()
-                        }
+                        callBack.onSuccessAuthenticate(cipherResult)
+                    }
 
-                        override fun onAuthenticationError(
-                            errorCode: Int,
-                            errString: CharSequence
-                        ) {
-                            super.onAuthenticationError(errorCode, errString)
+                    override fun onAuthenticationFailed() {
+                        super.onAuthenticationFailed()
+                        callBack.onFailedAuthenticate()
+                    }
+
+                    override fun onAuthenticationError(
+                        errorCode: Int,
+                        errString: CharSequence
+                    ) {
+                        super.onAuthenticationError(errorCode, errString)
+                        if (errorCode == 13) {
+                            callBack.onCanceled()
+                        } else {
                             callBack.onErrorAuthenticate(
                                 MarkAuthenticatorException(
                                     code = "$errorCode",
@@ -850,59 +768,8 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                             )
                         }
                     }
-                )
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                generalAuthenticateAndroidM(
-                    FingerprintManager.CryptoObject(cipher),
-                    object : FingerprintManager.AuthenticationCallback() {
-                        @Deprecated("Deprecated in Java")
-                        override fun onAuthenticationSucceeded(result: FingerprintManager.AuthenticationResult?) {
-                            super.onAuthenticationSucceeded(result)
-                            if (result?.cryptoObject?.cipher == null) {
-                                callBack.onErrorAuthenticate(
-                                    MarkAuthenticatorException(
-                                        code = ErrorConstant.CIPHER_MISSING,
-                                        message = "Cipher missing for secure authentication"
-                                    )
-                                )
-                                return
-                            }
-
-                            val cipherResult = result.cryptoObject.cipher
-                            callBack.onSuccessAuthenticate(cipherResult)
-                        }
-
-                        @Deprecated("Deprecated in Java")
-                        override fun onAuthenticationFailed() {
-                            super.onAuthenticationFailed()
-                            callBack.onFailedAuthenticate()
-                        }
-
-                        @Deprecated("Deprecated in Java")
-                        override fun onAuthenticationError(
-                            errorCode: Int,
-                            errString: CharSequence?
-                        ) {
-                            super.onAuthenticationError(errorCode, errString)
-                            callBack.onErrorAuthenticate(
-                                MarkAuthenticatorException(
-                                    code = "$errorCode",
-                                    message = errString?.toString(),
-                                )
-                            )
-                        }
-                    }
-                )
-            } else {
-                callBack.onErrorAuthenticate(
-                    MarkAuthenticatorException(
-                        code = ErrorConstant.OS_NOT_SUPPORTED,
-                        message = "OS not supported"
-                    )
-                )
-            }
-        } catch (e: MarkAuthenticatorException) {
-            callBack.onErrorAuthenticate(e)
+                }
+            )
         } catch (e: Throwable) {
             Log.wtf(
                 this::class.java.simpleName,
@@ -928,73 +795,36 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
         }
     }
 
-    //    @RequiresApi(Build.VERSION_CODES.P)
-    @RequiresApi(Build.VERSION_CODES.P)
-    private fun generalAuthenticateBiometricAndroidP(
-        callback: BiometricPrompt.AuthenticationCallback,
-        negativeButtonCallback: DialogInterface.OnClickListener,
-        cryptoObject: CryptoObject?,
-        setConfirmationRequired: Boolean = false,
+    private fun generalAuthenticateBiometricAndroidX(
+        activity: FragmentActivity,
+        callback: androidx.biometric.BiometricPrompt.AuthenticationCallback,
+        cryptoObject: androidx.biometric.BiometricPrompt.CryptoObject?,
+        confirmationRequired: Boolean = false,
         authenticator: Int,
         title: String,
         subTitle: String? = null,
         description: String,
         negativeText: String,
     ) {
-        val cancellationSignal = CancellationSignal()
         val executor = ContextCompat.getMainExecutor(context)
-        val prompt = BiometricPrompt.Builder(context)
-            .setTitle(title)
-            .apply {
-                if (!subTitle.isNullOrEmpty()) {
-                    setSubtitle(subTitle)
-                }
+        val promptInfo = androidx.biometric.BiometricPrompt.PromptInfo.Builder().apply {
+            setTitle(title)
+                .setDescription(description)
+            if (!subTitle.isNullOrEmpty()) {
+                setSubtitle(subTitle)
             }
-            .setDescription(description)
-            .apply {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    setAllowedAuthenticators(authenticator)
-                }
+            setNegativeButtonText(negativeText)
+            setAllowedAuthenticators(authenticator)
+            setConfirmationRequired(confirmationRequired)
+        }.build()
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    setConfirmationRequired(setConfirmationRequired)
-                }
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    if (authenticator != BiometricManager.Authenticators.DEVICE_CREDENTIAL) {
-                        setNegativeButton(negativeText, executor, negativeButtonCallback)
-                    }
-                }
-            }
-            .build()
+        val biometricPrompt = androidx.biometric.BiometricPrompt(activity, executor, callback)
 
         if (cryptoObject != null) {
-            prompt.authenticate(
-                cryptoObject,
-                cancellationSignal,
-                executor,
-                callback
-            )
+            biometricPrompt.authenticate(promptInfo, cryptoObject)
         } else {
-            prompt.authenticate(cancellationSignal, executor, callback)
+            biometricPrompt.authenticate(promptInfo)
         }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.M)
-    private fun generalAuthenticateAndroidM(
-        cryptoObject: FingerprintManager.CryptoObject?,
-        callback: FingerprintManager.AuthenticationCallback,
-    ) {
-        val cancellationSignal = CancellationSignal()
-        val handler = Handler(Looper.getMainLooper())
-        fingerprintManager.authenticate(
-            cryptoObject,
-            cancellationSignal,
-            0,
-            callback,
-            handler
-
-        )
     }
 
     /**

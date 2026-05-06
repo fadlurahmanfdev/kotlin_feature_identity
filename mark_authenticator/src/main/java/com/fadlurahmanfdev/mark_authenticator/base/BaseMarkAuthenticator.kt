@@ -4,11 +4,10 @@ import android.app.KeyguardManager
 import android.hardware.biometrics.BiometricManager
 import android.hardware.fingerprint.FingerprintManager
 import android.os.Build
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
 import android.util.Log
 import androidx.annotation.RequiresApi
-import com.fadlurahmanfdev.mark_authenticator.core.callback.AuthenticationCallBack
+import androidx.fragment.app.FragmentActivity
+import com.fadlurahmanfdev.mark_authenticator.core.callback.WeakAuthenticationCallBack
 import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthenticationDecryptCallBack
 import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthenticationEncryptCallBack
 import com.fadlurahmanfdev.mark_authenticator.core.constant.ErrorConstant
@@ -17,7 +16,6 @@ import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticatorMethod
 import com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException
 import java.security.KeyStore
 import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 
 abstract class BaseMarkAuthenticator {
@@ -121,19 +119,17 @@ abstract class BaseMarkAuthenticator {
     abstract fun isDeviceSupportBiometric(): Boolean
 
     /**
-     * Checks if the device has at least one fingerprint enrolled.
+     * Checks if the device has at least one biometric enrolled.
      *
-     * @return true if a fingerprint is enrolled; false otherwise.
+     * @return true if a biometric is enrolled; false otherwise.
      */
-    @RequiresApi(Build.VERSION_CODES.M)
-    abstract fun isFingerprintEnrolled(): Boolean
+    abstract fun isBiometricEnrolled(): Boolean
 
     /**
      * Determines the device's credential is enrolled (PIN, Password, etc)
      *
      * @return true, if device's credential already enrolled, otherwise is false.
      */
-    @RequiresApi(Build.VERSION_CODES.M)
     abstract fun isDeviceCredentialEnrolled(): Boolean
 
     /**
@@ -197,14 +193,14 @@ abstract class BaseMarkAuthenticator {
      * - **onNegativeButtonClicked**: Called when the user presses the cancel button (negative action),
      *   which dismisses the authentication prompt and halts the authentication process.
      */
-    @RequiresApi(Build.VERSION_CODES.R)
     abstract fun authenticateDeviceCredential(
+        activity: FragmentActivity,
         title: String,
         subTitle: String?,
         description: String,
         negativeText: String,
         confirmationRequired: Boolean,
-        callBack: AuthenticationCallBack,
+        callBack: WeakAuthenticationCallBack,
     )
 
     /**
@@ -233,12 +229,13 @@ abstract class BaseMarkAuthenticator {
      *   cancel button. The prompt is dismissed, and the authentication process is stopped.
      */
     abstract fun authenticateBiometric(
+        activity: FragmentActivity,
         title: String,
         subTitle: String?,
         description: String,
         negativeText: String,
         confirmationRequired: Boolean,
-        callBack: AuthenticationCallBack
+        callBack: WeakAuthenticationCallBack
     )
 
     /**
@@ -256,41 +253,26 @@ abstract class BaseMarkAuthenticator {
     abstract fun isBiometricChanged(alias: String): Boolean
 
     /**
-     * Securely authenticate using biometric encryption.
+     * Secure encrypt authenticate using biometric encryption with Default Cipher & Secret Key.
+     *
+     * Cipher get from [cipher]
+     * Secret Key get from [getSecretKey]
      *
      * This function performs biometric authentication with encryption, using a specified alias to retrieve or generate
      * a secret key. The encryption is achieved through a cipher initialized with the secret key. If the key becomes invalid
      * (e.g., due to a security change like adding a new fingerprint), the key must be deleted and regenerated.
      *
-     * @param alias The alias of the secret key used for encryption. If the key is invalidated, the user must delete it
-     *              and generate a new one to continue using secure authentication.
+     * @param activity Activity where the biometric prompt happened.
+     * @param alias Key Identifier
      * @param title The title displayed in the biometric prompt.
-     * @param subTitle The sub-title displayed in the biometric prompt.
+     * @param subTitle The subtitle displayed in the biometric prompt.
      * @param description The description shown in the biometric prompt.
      * @param negativeText The text for the cancel button in the prompt.
      * @param confirmationRequired Whether confirmation is required before successful authentication.
-     * @param callBack The callback to handle authentication results, including:
-     *
-     * - **onSuccessAuthenticate**: Called when biometric authentication is successful. This callback provides
-     *   the encrypted cipher and IV (Initialization Vector) in Base64 format, allowing further secure operations.
-     *
-     * - **onFailedAuthenticate**: Called when biometric authentication fails, typically due to unrecognized biometric data.
-     *   The user can attempt authentication again if desired.
-     *
-     * - **onErrorAuthenticate**: Called when an error occurs during authentication. Provides a code and message detailing
-     *   the error, such as:
-     *   - **Error Constant `KEY_PERMANENTLY_INVALIDATED`**: This occurs if the key has been invalidated. For example, adding
-     *     or removing fingerprints will invalidate the key, requiring the user to delete the existing key and generate a
-     *     new one with the same alias.
-     *   - **Error Constant `CIPHER_MISSING`**: Indicates a missing cipher, which is required for secure authentication.
-     *   - **Error Constant `OS_NOT_SUPPORTED`**: Returned when the device OS version does not support the necessary
-     *     biometric functionality.
-     *   - **General Exception**: If another exception is caught, an error message will indicate the issue (e.g., encryption setup errors).
-     *
-     * - **onNegativeButtonClicked**: Called when the user presses the cancel button on the biometric prompt, halting the
-     *   authentication process.
+     * @param callBack The callback to handle authentication results.
      */
     abstract fun secureAuthenticateBiometricEncrypt(
+        activity: FragmentActivity,
         alias: String,
         title: String,
         subTitle: String?,
@@ -301,41 +283,87 @@ abstract class BaseMarkAuthenticator {
     )
 
     /**
-     * Securely authenticate using biometric decryption.
+     * Securely encrypt authenticate using biometric encryption with custom Cipher & Secret Key.
      *
-     * This method decrypts data using a biometric-protected secret key. If the key is invalidated
-     * (e.g., due to biometric changes like adding a new fingerprint), it cannot be used for decryption.
-     * In such cases, users must generate a new key and re-encrypt the data.
+     * This function performs biometric authentication with encryption, using a specified alias to retrieve or generate
+     * a secret key. The encryption is achieved through a cipher initialized with the secret key. If the key becomes invalid
+     * (e.g., due to a security change like adding a new fingerprint), the key must be deleted and regenerated.
      *
-     * @param alias The alias of the secret key used for decryption.
-     * @param encodedIVKey The IV key obtained from encryption, encoded as a string.
+     * @param activity Activity where the biometric prompt happened.
      * @param title The title displayed in the biometric prompt.
-     * @param subTitle The sub-title displayed in the biometric prompt.
+     * @param cipher The cipher from crypto object for handling cryptography data.
+     * @param secretKey The secret key used for keep the data secured.
+     * @param subTitle The subtitle displayed in the biometric prompt.
      * @param description The description shown in the biometric prompt.
      * @param negativeText The text for the cancel button in the prompt.
      * @param confirmationRequired Whether confirmation is required before successful authentication.
-     * @param callBack The callback to handle authentication results, including the decrypted cipher.
+     * @param callBack The callback to handle authentication results.
+     */
+    abstract fun secureAuthenticateBiometricEncrypt(
+        activity: FragmentActivity,
+        title: String,
+        cipher: Cipher,
+        secretKey: SecretKey,
+        subTitle: String?,
+        description: String,
+        negativeText: String,
+        confirmationRequired: Boolean,
+        callBack: SecureAuthenticationEncryptCallBack
+    )
+
+    /**
+     * Secure decrypt authenticate using biometric encryption with Default Cipher & Secret Key.
      *
-     * `callBack` provides the following methods:
-     * - `onSuccessAuthenticate(cipher: Cipher)`: Called when authentication is successful. The provided
-     *   `cipher` can be used to securely decrypt the data using the correct secret key.
-     * - `onErrorAuthenticate(exception: FeatureIdentityException)`: Called when an error occurs during
-     *   authentication. The exception details the cause of failure, such as:
-     *      - `ErrorConstant.SECRET_KEY_MISSING`: The required secret key is missing. Re-encryption
-     *        with a new key may be necessary.
-     *      - `ErrorConstant.CIPHER_MISSING`: Cipher was not properly initialized for secure decryption.
-     *      - `ErrorConstant.KEY_PERMANENTLY_INVALIDATED`: The key is invalidated due to biometric changes
-     *        (e.g., new fingerprint added). A new key must be generated to proceed.
-     *      - `ErrorConstant.UNABLE_SECURE_AUTHENTICATE`: A generic error, often caused by device or
-     *        OS issues.
-     * - `onFailedAuthenticate()`: Called when biometric authentication fails but no critical error
-     *   occurs. This typically means the user did not authenticate successfully, and they may retry.
-     * - `onNegativeButtonClicked(which: Int)`: Called when the user taps the negative button (e.g.,
-     *   "Cancel") on the biometric prompt. This cancels the authentication process.
+     * Cipher get from [cipher]
+     * Secret Key get from [getSecretKey]
+     *
+     * This function performs biometric authentication with encryption, using a specified alias to retrieve or generate
+     * a secret key. The encryption is achieved through a cipher initialized with the secret key. If the key becomes invalid
+     * (e.g., due to a security change like adding a new fingerprint), the key must be deleted and regenerated.
+     *
+     * @param activity Activity where the biometric prompt happened.
+     * @param alias Key Identifier
+     * @param title The title displayed in the biometric prompt.
+     * @param subTitle The subtitle displayed in the biometric prompt.
+     * @param description The description shown in the biometric prompt.
+     * @param negativeText The text for the cancel button in the prompt.
+     * @param confirmationRequired Whether confirmation is required before successful authentication.
+     * @param callBack The callback to handle authentication results.
      */
     abstract fun secureAuthenticateBiometricDecrypt(
+        activity: FragmentActivity,
         alias: String,
         encodedIVKey: String,
+        title: String,
+        subTitle: String?,
+        description: String,
+        negativeText: String,
+        confirmationRequired: Boolean,
+        callBack: SecureAuthenticationDecryptCallBack
+    )
+
+    /**
+     * Secure decrypt authenticate using biometric encryption with custom Cipher & Secret Key.
+     *
+     * This function performs biometric authentication with encryption, using a specified alias to retrieve or generate
+     * a secret key. The encryption is achieved through a cipher initialized with the secret key. If the key becomes invalid
+     * (e.g., due to a security change like adding a new fingerprint), the key must be deleted and regenerated.
+     *
+     * @param activity Activity where the biometric prompt happened.
+     * @param title The title displayed in the biometric prompt.
+     * @param cipher The cipher from crypto object for handling cryptography data.
+     * @param secretKey The secret key used for keep the data secured.
+     * @param subTitle The subtitle displayed in the biometric prompt.
+     * @param description The description shown in the biometric prompt.
+     * @param negativeText The text for the cancel button in the prompt.
+     * @param confirmationRequired Whether confirmation is required before successful authentication.
+     * @param callBack The callback to handle authentication results.
+     */
+    abstract fun secureAuthenticateBiometricDecrypt(
+        activity: FragmentActivity,
+        encodedIVKey: String,
+        cipher: Cipher,
+        secretKey: SecretKey,
         title: String,
         subTitle: String?,
         description: String,
