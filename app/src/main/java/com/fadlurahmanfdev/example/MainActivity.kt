@@ -16,8 +16,9 @@ import com.fadlurahmanfdev.mark_authenticator.core.callback.AuthenticationCallBa
 import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthenticationDecryptCallBack
 import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthenticationEncryptCallBack
 import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticatorMethod
-import com.fadlurahmanfdev.mark_authenticator.core.exception.FeatureIdentityException
+import com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException
 import com.fadlurahmanfdev.mark_authenticator.MarkAuthenticator
+import com.fadlurahmanfdev.mark_authenticator.MarkAuthenticatorUtils
 import javax.crypto.Cipher
 
 class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
@@ -66,6 +67,13 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
 
         FeatureModel(
             featureIcon = R.drawable.baseline_developer_mode_24,
+            title = "---------------------DIVIDER-------------------",
+            desc = "-------------------------------------------------------------------------",
+            enum = "DIVIDER"
+        ),
+
+        FeatureModel(
+            featureIcon = R.drawable.baseline_developer_mode_24,
             title = "Prompt Weak Biometric",
             desc = "Prompt Weak Biometric (Fingerprint & Face Recognition)",
             enum = "PROMPT_WEAK_BIOMETRIC"
@@ -91,6 +99,12 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
         ),
         FeatureModel(
             featureIcon = R.drawable.baseline_developer_mode_24,
+            title = "---------------------DIVIDER-------------------",
+            desc = "-------------------------------------------------------------------------",
+            enum = "DIVIDER"
+        ),
+        FeatureModel(
+            featureIcon = R.drawable.baseline_developer_mode_24,
             title = "Encrypted Biometric",
             desc = "Prompt encrypted biometric",
             enum = "PROMPT_ENCRYPT_BIOMETRIC"
@@ -100,6 +114,18 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
             title = "Decrypted Biometric",
             desc = "Prompt decrypted biometric",
             enum = "PROMPT_DECRYPT_BIOMETRIC"
+        ),
+        FeatureModel(
+            featureIcon = R.drawable.baseline_developer_mode_24,
+            title = "Encrypt Biometric",
+            desc = "Prompt encrypt biometric with custom parameter",
+            enum = "PROMPT_ENCRYPT_BIOMETRIC_WITH_CUSTOM_PARAMETER"
+        ),
+        FeatureModel(
+            featureIcon = R.drawable.baseline_developer_mode_24,
+            title = "Decrypt Biometric",
+            desc = "Prompt decrypt biometric with custom parameter",
+            enum = "PROMPT_DECRYPT_BIOMETRIC_WITH_CUSTOM_PARAMETER"
         ),
     )
 
@@ -124,7 +150,6 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
         adapter = ListExampleAdapter()
         adapter.setCallback(this)
         adapter.setList(features)
-        adapter.setHasStableIds(true)
         rv.adapter = adapter
         markAuthenticator = MarkAuthenticator(this)
     }
@@ -207,7 +232,6 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
             }
 
             "PROMPT_WEAK_BIOMETRIC" -> {
-                cancellationSignal = CancellationSignal()
                 markAuthenticator.authenticateBiometric(
                     title = "Title - Weak Biometric",
                     description = "Desc - Weak Biometric",
@@ -224,7 +248,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
                             toast.show()
                         }
 
-                        override fun onErrorAuthenticate(exception: FeatureIdentityException) {
+                        override fun onErrorAuthenticate(exception: MarkAuthenticatorException) {
                             val toast = Toast.makeText(
                                 this@MainActivity,
                                 "Error Authentication: ${exception.code}",
@@ -252,7 +276,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
                             toast.show()
                         }
 
-                        override fun onNegativeButtonClicked(which:Int) {
+                        override fun onNegativeButtonClicked(which: Int) {
                             super.onNegativeButtonClicked(which)
                             val toast = Toast.makeText(
                                 this@MainActivity,
@@ -283,7 +307,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
                                 toast.show()
                             }
 
-                            override fun onErrorAuthenticate(exception: FeatureIdentityException) {
+                            override fun onErrorAuthenticate(exception: MarkAuthenticatorException) {
                                 val toast = Toast.makeText(
                                     this@MainActivity,
                                     "Error Authentication: ${exception.code}",
@@ -317,7 +341,10 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
 
             "IS_BIOMETRIC_CHANGED" -> {
                 val isBiometricChanged = markAuthenticator.isBiometricChanged("fadlurahmanfdev")
-                Log.d(this::class.java.simpleName, "is biometric changed: $isBiometricChanged")
+                Log.d(
+                    this::class.java.simpleName,
+                    "App-Example-LOG %%% is biometric changed: $isBiometricChanged"
+                )
             }
 
             "DELETE_SECRET_KEY" -> {
@@ -355,7 +382,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
                             toast.show()
                         }
 
-                        override fun onErrorAuthenticate(exception: FeatureIdentityException) {
+                        override fun onErrorAuthenticate(exception: MarkAuthenticatorException) {
                             val toast = Toast.makeText(
                                 this@MainActivity,
                                 "Error Authentication: ${exception.code}",
@@ -373,7 +400,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
                             toast.show()
                         }
 
-                        override fun onNegativeButtonClicked(which:Int) {
+                        override fun onNegativeButtonClicked(which: Int) {
                             super.onNegativeButtonClicked(which)
                             val toast = Toast.makeText(
                                 this@MainActivity,
@@ -397,21 +424,8 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
                     confirmationRequired = false,
                     callBack = object : SecureAuthenticationDecryptCallBack {
                         override fun onSuccessAuthenticate(cipher: Cipher) {
-//                            val decodedPassword =
-//                                Base64.decode(encodedEncryptedPassword, Base64.NO_WRAP)
-//                            val plainPassword = featureAuthentication.decrypt(cipher, decodedPassword)
-//                            Log.d(
-//                                this@MainActivity::class.java.simpleName,
-//                                "DECRYPTED PASSWORD: $plainPassword"
-//                            )
-//                            val toast = Toast.makeText(
-//                                this@MainActivity,
-//                                "Successfully Decrypt",
-//                                Toast.LENGTH_SHORT
-//                            )
-//                            toast.show()
-
-                            val plainPassword = markAuthenticator.decrypt(cipher, encodedEncryptedPassword)
+                            val plainPassword =
+                                markAuthenticator.decrypt(cipher, encodedEncryptedPassword)
                             Log.d(
                                 this@MainActivity::class.java.simpleName,
                                 "decrypted password: $plainPassword"
@@ -424,7 +438,7 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
                             toast.show()
                         }
 
-                        override fun onErrorAuthenticate(exception: FeatureIdentityException) {
+                        override fun onErrorAuthenticate(exception: MarkAuthenticatorException) {
                             val toast = Toast.makeText(
                                 this@MainActivity,
                                 "Error Authentication: ${exception.code}",
@@ -442,7 +456,127 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
                             toast.show()
                         }
 
-                        override fun onNegativeButtonClicked(which:Int) {
+                        override fun onNegativeButtonClicked(which: Int) {
+                            super.onNegativeButtonClicked(which)
+                            val toast = Toast.makeText(
+                                this@MainActivity,
+                                "Negative Button Clicked authenticate",
+                                Toast.LENGTH_SHORT
+                            )
+                            toast.show()
+                        }
+                    }
+                )
+            }
+
+            "PROMPT_ENCRYPT_BIOMETRIC_WITH_CUSTOM_PARAMETER" -> {
+                markAuthenticator.secureAuthenticateBiometricEncrypt(
+                    title = "Title - Encrypt Biometric",
+                    subTitle = "Sub Title - Encrypt Biometric",
+                    cipher = MarkAuthenticatorUtils.cipher(),
+                    secretKey = MarkAuthenticatorUtils.getSecretKey(alias = "fadlurahmanfdev")!!,
+                    description = "Desc - Encrypt Biometric",
+                    negativeText = "Cancel",
+                    confirmationRequired = false,
+                    callBack = object : SecureAuthenticationEncryptCallBack {
+                        override fun onSuccessAuthenticate(
+                            cipher: Cipher,
+                            encodedIVKey: String
+                        ) {
+                            encodedEncryptedPassword = markAuthenticator.encrypt(cipher, plainText)
+                            this@MainActivity.encodedIvKey = encodedIVKey
+                            Log.d(
+                                this@MainActivity::class.java.simpleName,
+                                "encoded iv key: ${this@MainActivity.encodedIvKey}"
+                            )
+                            Log.d(
+                                this@MainActivity::class.java.simpleName,
+                                "encoded encrypted password: $encodedEncryptedPassword"
+                            )
+                            val toast = Toast.makeText(
+                                this@MainActivity,
+                                "Successfully Encrypted Authenticate",
+                                Toast.LENGTH_SHORT
+                            )
+                            toast.show()
+                        }
+
+                        override fun onErrorAuthenticate(exception: MarkAuthenticatorException) {
+                            val toast = Toast.makeText(
+                                this@MainActivity,
+                                "Error Authentication: ${exception.code}",
+                                Toast.LENGTH_SHORT
+                            )
+                            toast.show()
+                        }
+
+                        override fun onFailedAuthenticate() {
+                            val toast = Toast.makeText(
+                                this@MainActivity,
+                                "Failed authenticate",
+                                Toast.LENGTH_SHORT
+                            )
+                            toast.show()
+                        }
+
+                        override fun onNegativeButtonClicked(which: Int) {
+                            super.onNegativeButtonClicked(which)
+                            val toast = Toast.makeText(
+                                this@MainActivity,
+                                "Negative Button Clicked authenticate",
+                                Toast.LENGTH_SHORT
+                            )
+                            toast.show()
+                        }
+                    }
+                )
+            }
+
+            "PROMPT_DECRYPT_BIOMETRIC_WITH_CUSTOM_PARAMETER" -> {
+                markAuthenticator.secureAuthenticateBiometricDecrypt(
+                    encodedIVKey = encodedIvKey,
+                    cipher = MarkAuthenticatorUtils.cipher(),
+                    secretKey = MarkAuthenticatorUtils.getSecretKey(alias = "fadlurahmanfdev")!!,
+                    title = "Title - Decrypt Biometric",
+                    subTitle = "Sub Title - Decrypt Biometric",
+                    description = "Desc - Decrypt Biometric",
+                    negativeText = "Cancel",
+                    confirmationRequired = false,
+                    callBack = object : SecureAuthenticationDecryptCallBack {
+                        override fun onSuccessAuthenticate(cipher: Cipher) {
+                            val plainPassword =
+                                markAuthenticator.decrypt(cipher, encodedEncryptedPassword)
+                            Log.d(
+                                this@MainActivity::class.java.simpleName,
+                                "decrypted password: $plainPassword"
+                            )
+                            val toast = Toast.makeText(
+                                this@MainActivity,
+                                "Successfully Decrypted Authenticate",
+                                Toast.LENGTH_SHORT
+                            )
+                            toast.show()
+                        }
+
+                        override fun onErrorAuthenticate(exception: MarkAuthenticatorException) {
+                            val toast = Toast.makeText(
+                                this@MainActivity,
+                                "Error Authentication: ${exception.code}",
+                                Toast.LENGTH_SHORT
+                            )
+                            toast.show()
+                        }
+
+                        override fun onFailedAuthenticate() {
+                            val toast = Toast.makeText(
+                                this@MainActivity,
+                                "Failed authenticate",
+                                Toast.LENGTH_SHORT
+                            )
+                            toast.show()
+                        }
+
+                        override fun onNegativeButtonClicked(which: Int) {
                             super.onNegativeButtonClicked(which)
                             val toast = Toast.makeText(
                                 this@MainActivity,

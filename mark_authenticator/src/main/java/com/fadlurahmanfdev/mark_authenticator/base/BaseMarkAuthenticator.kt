@@ -22,7 +22,7 @@ abstract class BaseMarkAuthenticator {
      *
      * @param alias The alias of the entry to delete from the KeyStore. Must not be empty.
      *
-     * @throws com.fadlurahmanfdev.mark_authenticator.core.exception.FeatureIdentityException if unable to delete the key, with error code [com.fadlurahmanfdev.mark_authenticator.core.constant.ErrorConstant.UNABLE_TO_DELETE_SECRET_KEY].
+     * @throws com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException if unable to delete the key, with error code [com.fadlurahmanfdev.mark_authenticator.core.constant.ErrorConstant.UNABLE_TO_DELETE_SECRET_KEY].
      */
     abstract fun deleteSecretKey(alias: String)
 
@@ -178,7 +178,7 @@ abstract class BaseMarkAuthenticator {
      *
      * @return true if a biometric change is detected; false otherwise.
      *
-     * @throws com.fadlurahmanfdev.mark_authenticator.core.exception.FeatureIdentityException [com.fadlurahmanfdev.mark_authenticator.core.constant.ErrorConstant.UNABLE_TO_DETECT_BIOMETRIC_CHANGE] if an error occurs while checking for biometric changes.
+     * @throws com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException [com.fadlurahmanfdev.mark_authenticator.core.constant.ErrorConstant.UNABLE_TO_DETECT_BIOMETRIC_CHANGE] if an error occurs while checking for biometric changes.
      */
     abstract fun isBiometricChanged(alias: String): Boolean
 
@@ -294,7 +294,7 @@ abstract class BaseMarkAuthenticator {
      * @param cipher The `Cipher` instance initialized in `DECRYPT_MODE`.
      * @param encryptedText The encrypted byte array to be decrypted.
      * @return The decrypted plain text string.
-     * @throws com.fadlurahmanfdev.mark_authenticator.core.exception.FeatureIdentityException If the decryption fails due to padding issues (BadPaddingException).
+     * @throws com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException If the decryption fails due to padding issues (BadPaddingException).
      */
     abstract fun decrypt(cipher: Cipher, encryptedText: ByteArray): String
 
@@ -308,7 +308,7 @@ abstract class BaseMarkAuthenticator {
      * @param cipher The `Cipher` instance initialized in `DECRYPT_MODE`.
      * @param encryptedText The Base64-encoded encrypted string to be decrypted.
      * @return The decrypted plain text string.
-     * @throws com.fadlurahmanfdev.mark_authenticator.core.exception.FeatureIdentityException If the decryption fails due to padding issues.
+     * @throws com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException If the decryption fails due to padding issues.
      */
     abstract fun decrypt(cipher: Cipher, encryptedText: String): String
 }

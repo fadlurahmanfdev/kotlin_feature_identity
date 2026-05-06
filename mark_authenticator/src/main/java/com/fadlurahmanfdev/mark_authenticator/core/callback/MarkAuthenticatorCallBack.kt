@@ -1,13 +1,13 @@
 package com.fadlurahmanfdev.mark_authenticator.core.callback
 
-import com.fadlurahmanfdev.mark_authenticator.core.exception.FeatureIdentityException
+import com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException
 import javax.crypto.Cipher
 
 interface MarkAuthenticatorCallBack {
     fun onNegativeButtonClicked(which: Int) {}
     fun onFailedAuthenticate()
 
-    fun onErrorAuthenticate(exception: FeatureIdentityException)
+    fun onErrorAuthenticate(exception: MarkAuthenticatorException)
 
     fun onCanceled() {}
 }

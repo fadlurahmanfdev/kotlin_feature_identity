@@ -27,7 +27,8 @@ import com.fadlurahmanfdev.mark_authenticator.core.constant.ErrorConstant
 import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticationType
 import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticationStatus
 import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticatorMethod
-import com.fadlurahmanfdev.mark_authenticator.core.exception.FeatureIdentityException
+import com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException
+import java.security.InvalidKeyException
 import java.security.KeyStore
 import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
@@ -120,7 +121,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                 this::class.java.simpleName,
                 "unable to fetch $alias: ${e.message}"
             )
-            throw FeatureIdentityException(
+            throw MarkAuthenticatorException(
                 code = ErrorConstant.UNABLE_FETCH_GET_SECRET_KEY,
                 message = e.message
             )
@@ -133,7 +134,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
      *
      * @param alias The alias of the entry to delete from the KeyStore. Must not be empty.
      *
-     * @throws FeatureIdentityException if unable to delete the key, with error code [ErrorConstant.UNABLE_TO_DELETE_SECRET_KEY].
+     * @throws MarkAuthenticatorException if unable to delete the key, with error code [ErrorConstant.UNABLE_TO_DELETE_SECRET_KEY].
      */
     override fun deleteSecretKey(alias: String) {
         val keyStore = KeyStore.getInstance("AndroidKeyStore")
@@ -149,7 +150,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                 this::class.java.simpleName,
                 "failed to delete secret key $alias"
             )
-            throw FeatureIdentityException(
+            throw MarkAuthenticatorException(
                 code = ErrorConstant.UNABLE_TO_DELETE_SECRET_KEY,
                 message = e.message
             )
@@ -362,11 +363,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
             negativeText = negativeText,
             setConfirmationRequired = confirmationRequired,
             cryptoObject = null,
-            negativeButtonCallback = object : DialogInterface.OnClickListener {
-                override fun onClick(dialog: DialogInterface?, which: Int) {
-                    println("MASUK WHICH")
-                }
-            },
+            negativeButtonCallback = DialogInterface.OnClickListener { dialog, which -> },
             callback = object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
@@ -384,7 +381,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                         callBack.onCanceled()
                     } else {
                         callBack.onErrorAuthenticate(
-                            FeatureIdentityException(
+                            MarkAuthenticatorException(
                                 code = "$errorCode",
                                 message = errString.toString()
                             )
@@ -441,10 +438,8 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                 negativeText = negativeText,
                 setConfirmationRequired = confirmationRequired,
                 cryptoObject = null,
-                negativeButtonCallback = object : DialogInterface.OnClickListener {
-                    override fun onClick(dialog: DialogInterface?, which: Int) {
-                        callBack.onNegativeButtonClicked(which)
-                    }
+                negativeButtonCallback = DialogInterface.OnClickListener { dialog, which ->
+                    callBack.onNegativeButtonClicked(which)
                 },
                 callback = object : BiometricPrompt.AuthenticationCallback() {
                     override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
@@ -463,7 +458,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                             callBack.onCanceled()
                         } else {
                             callBack.onErrorAuthenticate(
-                                FeatureIdentityException(
+                                MarkAuthenticatorException(
                                     code = "$errorCode",
                                     message = errString.toString()
                                 )
@@ -492,7 +487,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                     override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
                         super.onAuthenticationError(errorCode, errString)
                         callBack.onErrorAuthenticate(
-                            FeatureIdentityException(
+                            MarkAuthenticatorException(
                                 code = "$errorCode",
                                 message = errString?.toString(),
                             )
@@ -502,7 +497,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
             )
         } else {
             callBack.onErrorAuthenticate(
-                FeatureIdentityException(
+                MarkAuthenticatorException(
                     code = ErrorConstant.OS_NOT_SUPPORTED,
                     message = "OS not supported"
                 )
@@ -520,7 +515,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
      *
      * @return true if a biometric change is detected; false otherwise.
      *
-     * @throws FeatureIdentityException [ErrorConstant.UNABLE_TO_DETECT_BIOMETRIC_CHANGE] if an error occurs while checking for biometric changes.
+     * @throws MarkAuthenticatorException [ErrorConstant.UNABLE_TO_DETECT_BIOMETRIC_CHANGE] if an error occurs while checking for biometric changes.
      */
     override fun isBiometricChanged(alias: String): Boolean {
         try {
@@ -528,17 +523,30 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
             val secretKey = getSecretKey(alias = alias)
             cipher.init(Cipher.ENCRYPT_MODE, secretKey)
             return false
-        } catch (e: FeatureIdentityException) {
+        } catch (e: MarkAuthenticatorException) {
             throw e
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (e is KeyPermanentlyInvalidatedException) {
                     return true
                 }
             }
-            throw FeatureIdentityException(
+
+            if (e is InvalidKeyException) {
+                Log.w(
+                    this::class.java.simpleName,
+                    "MarkAuthenticator-LOG %%% key with specific alias is missing, probably never register key with specific alias"
+                )
+                return false
+            }
+
+            Log.e(
+                this::class.java.simpleName,
+                "MarkAuthenticator-LOG %%% failed to detect biometric changes caused by ${e.toString()}"
+            )
+            throw MarkAuthenticatorException(
                 code = ErrorConstant.UNABLE_TO_DETECT_BIOMETRIC_CHANGE,
-                message = e.message,
+                message = e.toString(),
             )
         }
     }
@@ -587,14 +595,39 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
         confirmationRequired: Boolean,
         callBack: SecureAuthenticationEncryptCallBack
     ) {
+        var secretKey = MarkAuthenticatorUtils.getSecretKey(alias = alias)
+
+        if (secretKey == null) {
+            secretKey = MarkAuthenticatorUtils.generateSecretKey(alias)
+        }
+
+        val cipher = MarkAuthenticatorUtils.cipher()
+
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+
+        secureAuthenticateBiometricEncrypt(
+            title = title,
+            cipher = cipher,
+            secretKey = secretKey,
+            subTitle = subTitle,
+            description = description,
+            negativeText = negativeText,
+            confirmationRequired = confirmationRequired,
+            callBack = callBack,
+        )
+    }
+
+    fun secureAuthenticateBiometricEncrypt(
+        title: String,
+        cipher: Cipher,
+        secretKey: SecretKey,
+        subTitle: String?,
+        description: String,
+        negativeText: String,
+        confirmationRequired: Boolean,
+        callBack: SecureAuthenticationEncryptCallBack
+    ) {
         try {
-            val cipher = getCipher()
-            var secretKey = getSecretKey(alias = alias)
-
-            if (secretKey == null) {
-                secretKey = generateSecretKey(alias)
-            }
-
             cipher.init(Cipher.ENCRYPT_MODE, secretKey)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -606,18 +639,15 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                     negativeText = negativeText,
                     setConfirmationRequired = confirmationRequired,
                     cryptoObject = CryptoObject(cipher),
-                    negativeButtonCallback = object : DialogInterface.OnClickListener {
-                        override fun onClick(dialog: DialogInterface?, which: Int) {
-                            callBack.onNegativeButtonClicked(which)
-                        }
-
+                    negativeButtonCallback = DialogInterface.OnClickListener { dialog, which ->
+                        callBack.onNegativeButtonClicked(which)
                     },
                     callback = object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                             super.onAuthenticationSucceeded(result)
                             if (result.cryptoObject?.cipher == null) {
                                 callBack.onErrorAuthenticate(
-                                    FeatureIdentityException(
+                                    MarkAuthenticatorException(
                                         code = ErrorConstant.CIPHER_MISSING,
                                         message = "Cipher missing for secure authentication"
                                     )
@@ -645,7 +675,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                         ) {
                             super.onAuthenticationError(errorCode, errString)
                             callBack.onErrorAuthenticate(
-                                FeatureIdentityException(
+                                MarkAuthenticatorException(
                                     code = "$errorCode",
                                     message = errString.toString()
                                 )
@@ -662,7 +692,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                             super.onAuthenticationSucceeded(result)
                             if (result?.cryptoObject?.cipher == null) {
                                 callBack.onErrorAuthenticate(
-                                    FeatureIdentityException(
+                                    MarkAuthenticatorException(
                                         code = ErrorConstant.CIPHER_MISSING,
                                         message = "Cipher missing for secure authentication"
                                     )
@@ -692,7 +722,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                         ) {
                             super.onAuthenticationError(errorCode, errString)
                             callBack.onErrorAuthenticate(
-                                FeatureIdentityException(
+                                MarkAuthenticatorException(
                                     code = "$errorCode",
                                     message = errString?.toString(),
                                 )
@@ -702,19 +732,19 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                 )
             } else {
                 callBack.onErrorAuthenticate(
-                    FeatureIdentityException(
+                    MarkAuthenticatorException(
                         code = ErrorConstant.OS_NOT_SUPPORTED,
                         message = "OS not supported"
                     )
                 )
             }
-        } catch (e: FeatureIdentityException) {
+        } catch (e: MarkAuthenticatorException) {
             callBack.onErrorAuthenticate(e)
         } catch (e: Exception) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (e is KeyPermanentlyInvalidatedException) {
                     callBack.onErrorAuthenticate(
-                        FeatureIdentityException(
+                        MarkAuthenticatorException(
                             code = ErrorConstant.KEY_PERMANENTLY_INVALIDATED,
                             message = e.message,
                         )
@@ -723,7 +753,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                 }
             }
             callBack.onErrorAuthenticate(
-                FeatureIdentityException(
+                MarkAuthenticatorException(
                     code = ErrorConstant.UNABLE_SECURE_AUTHENTICATE,
                     message = e.message,
                 )
@@ -774,14 +804,39 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
         confirmationRequired: Boolean,
         callBack: SecureAuthenticationDecryptCallBack
     ) {
-        try {
-            val cipher = getCipher()
-            val secretKey = getSecretKey(alias = alias)
-                ?: throw FeatureIdentityException(
-                    code = ErrorConstant.SECRET_KEY_MISSING,
-                    message = "Cannot proceed to the next page caused by secret key null"
-                )
+        val cipher = MarkAuthenticatorUtils.cipher()
 
+        val secretKey =
+            MarkAuthenticatorUtils.getSecretKey(alias = alias) ?: throw MarkAuthenticatorException(
+                code = ErrorConstant.SECRET_KEY_MISSING,
+                message = "Secret Key Missing, probably secret key not registered yet"
+            )
+
+        secureAuthenticateBiometricDecrypt(
+            encodedIVKey = encodedIVKey,
+            cipher = cipher,
+            secretKey = secretKey,
+            title = title,
+            subTitle = subTitle,
+            description = description,
+            negativeText = negativeText,
+            confirmationRequired = confirmationRequired,
+            callBack = callBack,
+        )
+    }
+
+    fun secureAuthenticateBiometricDecrypt(
+        encodedIVKey: String,
+        cipher: Cipher,
+        secretKey: SecretKey,
+        title: String,
+        subTitle: String?,
+        description: String,
+        negativeText: String,
+        confirmationRequired: Boolean,
+        callBack: SecureAuthenticationDecryptCallBack
+    ) {
+        try {
             val ivKey = Base64.decode(encodedIVKey, Base64.NO_WRAP)
             val ivSpec = IvParameterSpec(ivKey)
             cipher.init(Cipher.DECRYPT_MODE, secretKey, ivSpec)
@@ -795,18 +850,15 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                     negativeText = negativeText,
                     setConfirmationRequired = confirmationRequired,
                     cryptoObject = CryptoObject(cipher),
-                    negativeButtonCallback = object : DialogInterface.OnClickListener {
-                        override fun onClick(dialog: DialogInterface?, which: Int) {
-                            callBack.onNegativeButtonClicked(which)
-                        }
-
+                    negativeButtonCallback = DialogInterface.OnClickListener { dialog, which ->
+                        callBack.onNegativeButtonClicked(which)
                     },
                     callback = object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                             super.onAuthenticationSucceeded(result)
                             if (result.cryptoObject?.cipher == null) {
                                 callBack.onErrorAuthenticate(
-                                    FeatureIdentityException(
+                                    MarkAuthenticatorException(
                                         code = ErrorConstant.CIPHER_MISSING,
                                         message = "Cipher missing for secure authentication"
                                     )
@@ -829,7 +881,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                         ) {
                             super.onAuthenticationError(errorCode, errString)
                             callBack.onErrorAuthenticate(
-                                FeatureIdentityException(
+                                MarkAuthenticatorException(
                                     code = "$errorCode",
                                     message = errString.toString()
                                 )
@@ -846,7 +898,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                             super.onAuthenticationSucceeded(result)
                             if (result?.cryptoObject?.cipher == null) {
                                 callBack.onErrorAuthenticate(
-                                    FeatureIdentityException(
+                                    MarkAuthenticatorException(
                                         code = ErrorConstant.CIPHER_MISSING,
                                         message = "Cipher missing for secure authentication"
                                     )
@@ -871,7 +923,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                         ) {
                             super.onAuthenticationError(errorCode, errString)
                             callBack.onErrorAuthenticate(
-                                FeatureIdentityException(
+                                MarkAuthenticatorException(
                                     code = "$errorCode",
                                     message = errString?.toString(),
                                 )
@@ -881,19 +933,19 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                 )
             } else {
                 callBack.onErrorAuthenticate(
-                    FeatureIdentityException(
+                    MarkAuthenticatorException(
                         code = ErrorConstant.OS_NOT_SUPPORTED,
                         message = "OS not supported"
                     )
                 )
             }
-        } catch (e: FeatureIdentityException) {
+        } catch (e: MarkAuthenticatorException) {
             callBack.onErrorAuthenticate(e)
         } catch (e: Exception) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (e is KeyPermanentlyInvalidatedException) {
                     callBack.onErrorAuthenticate(
-                        FeatureIdentityException(
+                        MarkAuthenticatorException(
                             code = ErrorConstant.KEY_PERMANENTLY_INVALIDATED,
                             message = e.message,
                         )
@@ -902,7 +954,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
                 }
             }
             callBack.onErrorAuthenticate(
-                FeatureIdentityException(
+                MarkAuthenticatorException(
                     code = ErrorConstant.UNABLE_SECURE_AUTHENTICATE,
                     message = e.message,
                 )
@@ -1005,13 +1057,13 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
      * @param cipher The `Cipher` instance initialized in `DECRYPT_MODE`.
      * @param encryptedText The encrypted byte array to be decrypted.
      * @return The decrypted plain text string.
-     * @throws FeatureIdentityException If the decryption fails due to padding issues (BadPaddingException).
+     * @throws MarkAuthenticatorException If the decryption fails due to padding issues (BadPaddingException).
      */
     override fun decrypt(cipher: Cipher, encryptedText: ByteArray): String {
         try {
             return String(cipher.doFinal(encryptedText))
         } catch (e: BadPaddingException) {
-            throw FeatureIdentityException(
+            throw MarkAuthenticatorException(
                 code = ErrorConstant.BAD_PADDING,
                 message = e.message,
             )
@@ -1028,7 +1080,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
      * @param cipher The `Cipher` instance initialized in `DECRYPT_MODE`.
      * @param encryptedText The Base64-encoded encrypted string to be decrypted.
      * @return The decrypted plain text string.
-     * @throws FeatureIdentityException If the decryption fails due to padding issues.
+     * @throws MarkAuthenticatorException If the decryption fails due to padding issues.
      */
     override fun decrypt(cipher: Cipher, encryptedText: String): String {
         val decodedText =
