@@ -4,13 +4,21 @@ import android.app.KeyguardManager
 import android.hardware.biometrics.BiometricManager
 import android.hardware.fingerprint.FingerprintManager
 import android.os.Build
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Log
 import androidx.annotation.RequiresApi
 import com.fadlurahmanfdev.mark_authenticator.core.callback.AuthenticationCallBack
 import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthenticationDecryptCallBack
 import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthenticationEncryptCallBack
+import com.fadlurahmanfdev.mark_authenticator.core.constant.ErrorConstant
 import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticationStatus
 import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticatorMethod
+import com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException
+import java.security.KeyStore
 import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
 
 abstract class BaseMarkAuthenticator {
     lateinit var fingerprintManager: FingerprintManager
@@ -18,13 +26,78 @@ abstract class BaseMarkAuthenticator {
     lateinit var keyguardManager: KeyguardManager
 
     /**
+     * Cipher used for secure authentication
+     *
+     * the possible option is AES/GCM/NoPadding (recommended) & AES/CBC/PKCS7Padding
+     * */
+    abstract fun cipher(): Cipher
+
+    fun getSecretKey(alias: String): SecretKey? {
+        var secretKey: SecretKey? = null
+        val keyStore = KeyStore.getInstance("AndroidKeyStore")
+        keyStore.load(null)
+        try {
+            secretKey = keyStore.getKey(alias, null) as SecretKey?
+        } catch (e: Throwable) {
+            Log.wtf(
+                this::class.java.simpleName,
+                "MarkAuthenticator-LOG %%% failed to get secret key caused by ${e.toString()}"
+            )
+            throw MarkAuthenticatorException(
+                code = ErrorConstant.UNABLE_FETCH_GET_SECRET_KEY,
+                message = e.message,
+                cause = e,
+            )
+        }
+
+        return secretKey
+    }
+
+    /**
+     * Generate Secret Key for later used in secure biometric authentication
+     *
+     * @param alias Key Identifier
+     * */
+    abstract fun generateSecretKey(alias: String): SecretKey
+
+    /**
      * Deletes an existing key from the Android KeyStore.
      *
      * @param alias The alias of the entry to delete from the KeyStore. Must not be empty.
      *
-     * @throws com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException if unable to delete the key, with error code [com.fadlurahmanfdev.mark_authenticator.core.constant.ErrorConstant.UNABLE_TO_DELETE_SECRET_KEY].
+     * @throws MarkAuthenticatorException if unable to delete the key, with error code [ErrorConstant.UNABLE_TO_DELETE_SECRET_KEY].
      */
-    abstract fun deleteSecretKey(alias: String)
+    fun deleteSecretKey(alias: String){
+        val secretKey = getSecretKey(alias)
+
+        if (secretKey == null) {
+            Log.i(
+                this::class.java.simpleName,
+                "MarkAuthenticator-LOG %%% secret key is not exist with specific alias"
+            )
+            return
+        }
+
+        val keyStore = KeyStore.getInstance("AndroidKeyStore")
+        keyStore.load(null)
+        try {
+            keyStore.deleteEntry(alias)
+            Log.i(
+                this::class.java.simpleName,
+                "MarkAuthenticator-LOG %%% successfully delete key with specific alias"
+            )
+        } catch (e: Throwable) {
+            Log.e(
+                this::class.java.simpleName,
+                "failed to delete secret key $alias"
+            )
+            throw MarkAuthenticatorException(
+                code = ErrorConstant.UNABLE_TO_DELETE_SECRET_KEY,
+                message = e.message,
+                cause = e
+            )
+        }
+    }
 
     /**
      * Checks if the device supports fingerprint authentication.

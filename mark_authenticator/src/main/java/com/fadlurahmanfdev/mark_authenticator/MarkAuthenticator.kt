@@ -24,8 +24,8 @@ import com.fadlurahmanfdev.mark_authenticator.core.callback.AuthenticationCallBa
 import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthenticationDecryptCallBack
 import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthenticationEncryptCallBack
 import com.fadlurahmanfdev.mark_authenticator.core.constant.ErrorConstant
-import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticationType
 import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticationStatus
+import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticationType
 import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticatorMethod
 import com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException
 import java.security.InvalidKeyException
@@ -34,6 +34,7 @@ import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.IvParameterSpec
 
 class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() {
@@ -53,41 +54,42 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
         keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
     }
 
-    private fun getCipher(): Cipher {
+    /**
+     * Cipher used for secure authentication
+     * */
+    override fun cipher(): Cipher {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Cipher.getInstance(
                 KeyProperties.KEY_ALGORITHM_AES + "/"
-                        + KeyProperties.BLOCK_MODE_CBC + "/"
-                        + KeyProperties.ENCRYPTION_PADDING_PKCS7
+                        + KeyProperties.BLOCK_MODE_GCM + "/"
+                        + KeyProperties.ENCRYPTION_PADDING_NONE
             )
         } else {
-            Cipher.getInstance("AES/CBC/PKCS7Padding")
+            Cipher.getInstance("AES/GCM/NoPadding")
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
-    private fun generateKeyGenParameterSpec(alias: String): KeyGenParameterSpec {
-        return KeyGenParameterSpec.Builder(
-            alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-        ).apply {
-            setBlockModes(KeyProperties.BLOCK_MODE_CBC)
-            setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
-            setUserAuthenticationRequired(true)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                setInvalidatedByBiometricEnrollment(true)
-            }
-        }.build()
-    }
-
-    private fun generateSecretKey(alias: String): SecretKey {
+    /**
+     * Generate Secret Key with AES Algorithm
+     *
+     * @param alias the key identifier
+     *
+     * @throws MarkAuthenticatorException if the specific alias key already exist before with code [ErrorConstant.SECRET_KEY_ALREADY_EXIST]
+     * */
+    override fun generateSecretKey(alias: String): SecretKey {
         var secretKey: SecretKey? = getSecretKey(alias)
 
         if (secretKey != null) {
-            Log.d(this::class.java.simpleName, "secret key $alias already exist")
-            return secretKey
+            Log.i(
+                this::class.java.simpleName,
+                "MarkAuthenticator-LOG %%% secret key for specific alias is already exist"
+            )
+            throw MarkAuthenticatorException(
+                code = ErrorConstant.SECRET_KEY_ALREADY_EXIST,
+                message = "Secret Key Already Exist"
+            );
         }
 
-        Log.d(this::class.java.simpleName, "generating new secret key $alias")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val keyGenerator =
                 KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
@@ -102,59 +104,19 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
         return secretKey
     }
 
-    private fun getSecretKey(alias: String): SecretKey? {
-        var secretKey: SecretKey? = null
-        val keyStore = KeyStore.getInstance("AndroidKeyStore")
-        keyStore.load(null)
-        try {
-            val existingSecretKey =
-                keyStore.getKey(alias, null) as SecretKey?
-            if (existingSecretKey != null) {
-                Log.d(
-                    this::class.java.simpleName,
-                    "successfully get existing key - $alias"
-                )
-                secretKey = existingSecretKey
+    @RequiresApi(Build.VERSION_CODES.M)
+    private fun generateKeyGenParameterSpec(alias: String): KeyGenParameterSpec {
+        return KeyGenParameterSpec.Builder(
+            alias,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        ).apply {
+            setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            setUserAuthenticationRequired(true)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                setInvalidatedByBiometricEnrollment(true)
             }
-        } catch (e: Exception) {
-            Log.d(
-                this::class.java.simpleName,
-                "unable to fetch $alias: ${e.message}"
-            )
-            throw MarkAuthenticatorException(
-                code = ErrorConstant.UNABLE_FETCH_GET_SECRET_KEY,
-                message = e.message
-            )
-        }
-        return secretKey
-    }
-
-    /**
-     * Deletes an existing key from the Android KeyStore.
-     *
-     * @param alias The alias of the entry to delete from the KeyStore. Must not be empty.
-     *
-     * @throws MarkAuthenticatorException if unable to delete the key, with error code [ErrorConstant.UNABLE_TO_DELETE_SECRET_KEY].
-     */
-    override fun deleteSecretKey(alias: String) {
-        val keyStore = KeyStore.getInstance("AndroidKeyStore")
-        keyStore.load(null)
-        try {
-            keyStore.deleteEntry(alias)
-            Log.d(
-                this::class.java.simpleName,
-                "successfully delete secret key $alias"
-            )
-        } catch (e: Exception) {
-            Log.e(
-                this::class.java.simpleName,
-                "failed to delete secret key $alias"
-            )
-            throw MarkAuthenticatorException(
-                code = ErrorConstant.UNABLE_TO_DELETE_SECRET_KEY,
-                message = e.message
-            )
-        }
+        }.build()
     }
 
     /**
@@ -519,7 +481,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
      */
     override fun isBiometricChanged(alias: String): Boolean {
         try {
-            val cipher = getCipher()
+            val cipher = cipher()
             val secretKey = getSecretKey(alias = alias)
             cipher.init(Cipher.ENCRYPT_MODE, secretKey)
             return false
@@ -595,13 +557,13 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
         confirmationRequired: Boolean,
         callBack: SecureAuthenticationEncryptCallBack
     ) {
-        var secretKey = MarkAuthenticatorUtils.getSecretKey(alias = alias)
+        var secretKey = getSecretKey(alias = alias)
 
         if (secretKey == null) {
-            secretKey = MarkAuthenticatorUtils.generateSecretKey(alias)
+            secretKey = generateSecretKey(alias)
         }
 
-        val cipher = MarkAuthenticatorUtils.cipher()
+        val cipher = cipher()
 
         cipher.init(Cipher.ENCRYPT_MODE, secretKey)
 
@@ -804,10 +766,10 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
         confirmationRequired: Boolean,
         callBack: SecureAuthenticationDecryptCallBack
     ) {
-        val cipher = MarkAuthenticatorUtils.cipher()
+        val cipher = cipher()
 
         val secretKey =
-            MarkAuthenticatorUtils.getSecretKey(alias = alias) ?: throw MarkAuthenticatorException(
+            getSecretKey(alias = alias) ?: throw MarkAuthenticatorException(
                 code = ErrorConstant.SECRET_KEY_MISSING,
                 message = "Secret Key Missing, probably secret key not registered yet"
             )
@@ -838,7 +800,7 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
     ) {
         try {
             val ivKey = Base64.decode(encodedIVKey, Base64.NO_WRAP)
-            val ivSpec = IvParameterSpec(ivKey)
+            val ivSpec = GCMParameterSpec(128, ivKey)
             cipher.init(Cipher.DECRYPT_MODE, secretKey, ivSpec)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -941,7 +903,11 @@ class MarkAuthenticator(private val context: Context) : BaseMarkAuthenticator() 
             }
         } catch (e: MarkAuthenticatorException) {
             callBack.onErrorAuthenticate(e)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            Log.wtf(
+                this::class.java.simpleName,
+                "MarkAuthenticator-LOG %%% failed to secure authenticate caused by ${e.toString()}"
+            )
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (e is KeyPermanentlyInvalidatedException) {
                     callBack.onErrorAuthenticate(

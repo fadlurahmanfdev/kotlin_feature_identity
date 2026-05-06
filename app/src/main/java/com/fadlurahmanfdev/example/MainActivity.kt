@@ -18,7 +18,6 @@ import com.fadlurahmanfdev.mark_authenticator.core.callback.SecureAuthentication
 import com.fadlurahmanfdev.mark_authenticator.core.enums.MarkAuthenticatorMethod
 import com.fadlurahmanfdev.mark_authenticator.exception.MarkAuthenticatorException
 import com.fadlurahmanfdev.mark_authenticator.MarkAuthenticator
-import com.fadlurahmanfdev.mark_authenticator.MarkAuthenticatorUtils
 import javax.crypto.Cipher
 
 class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
@@ -470,11 +469,12 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
             }
 
             "PROMPT_ENCRYPT_BIOMETRIC_WITH_CUSTOM_PARAMETER" -> {
+                val alias = "fadlurahmanfdev"
                 markAuthenticator.secureAuthenticateBiometricEncrypt(
                     title = "Title - Encrypt Biometric",
                     subTitle = "Sub Title - Encrypt Biometric",
-                    cipher = MarkAuthenticatorUtils.cipher(),
-                    secretKey = MarkAuthenticatorUtils.getSecretKey(alias = "fadlurahmanfdev")!!,
+                    cipher = markAuthenticator.cipher(),
+                    secretKey = markAuthenticator.getSecretKey(alias = alias) ?: markAuthenticator.generateSecretKey(alias = alias),
                     description = "Desc - Encrypt Biometric",
                     negativeText = "Cancel",
                     confirmationRequired = false,
@@ -535,8 +535,8 @@ class MainActivity : AppCompatActivity(), ListExampleAdapter.Callback {
             "PROMPT_DECRYPT_BIOMETRIC_WITH_CUSTOM_PARAMETER" -> {
                 markAuthenticator.secureAuthenticateBiometricDecrypt(
                     encodedIVKey = encodedIvKey,
-                    cipher = MarkAuthenticatorUtils.cipher(),
-                    secretKey = MarkAuthenticatorUtils.getSecretKey(alias = "fadlurahmanfdev")!!,
+                    cipher = markAuthenticator.cipher(),
+                    secretKey = markAuthenticator.getSecretKey(alias = "fadlurahmanfdev")!!,
                     title = "Title - Decrypt Biometric",
                     subTitle = "Sub Title - Decrypt Biometric",
                     description = "Desc - Decrypt Biometric",
