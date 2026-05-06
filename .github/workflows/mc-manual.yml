@@ -29,11 +29,11 @@ jobs:
           echo "---------------------------||---------------------------"
           echo "---------------------------||---------------------------"
           echo "" >> gradle.properties
-          echo "mavenCentralUsername=${{ secrets.MAVEN_CENTRAL_TOKEN_USERNAME }}" >> gradle.properties
+          echo "mavenCentralUsername=${{ vars.MAVEN_CENTRAL_TOKEN_USERNAME }}" >> gradle.properties
           echo "" >> gradle.properties
           echo "mavenCentralPassword=${{ secrets.MAVEN_CENTRAL_TOKEN_PASSWORD }}" >> gradle.properties
           echo "" >> gradle.properties
-          echo "signing.keyId=${{ secrets.GPG_KEY_ID }}" >> gradle.properties
+          echo "signing.keyId=${{ vars.GPG_KEY_ID }}" >> gradle.properties
           echo "" >> gradle.properties >> gradle.properties
           echo "signing.password=${{ secrets.GPG_KEY_PASSWORD }}" >> gradle.properties
           echo "" >> gradle.properties >> gradle.properties
@@ -48,7 +48,4 @@ jobs:
           echo "---------------------------||---------------------------"
           echo "---------------------------||---------------------------"
           echo "---------------------------||---------------------------"
-          chmod +x update_version.sh
-          ./update_version.sh kotlin_feature_identity/build.gradle.kts 0.0.1-beta ${{ steps.setup.outputs.release_name }}
-          ./gradlew :kotlin_feature_identity:publishMavenPublicationToMavenCentralRepository
-          
+          ./gradlew :mark_authenticator:publishMavenPublicationToMavenCentralRepository
