@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Kotlin Feature Identity"
+rootProject.name = "Mark Authenticator"
 include(":app")
-include(":kotlin_feature_identity")
+include(":mark_authenticator")

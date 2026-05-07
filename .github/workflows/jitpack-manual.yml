@@ -25,20 +25,8 @@ jobs:
         uses: jakejarvis/wait-action@master
         with:
           time: '60s'
-      - name: Config Gradle
-        run: |
-          ./gradlew clean
-          echo "---------------------------||---------------------------"
-          echo "---------------------------||---------------------------"
-          echo "---------------------------||---------------------------"
-          chmod +x update_version.sh
-          echo "---------------------------||---------------------------"
-          echo "---------------------------||---------------------------"
-          echo "---------------------------||---------------------------"
-          ./update_version.sh kotlin_feature_identity/build.gradle.kts 0.0.1-beta ${{ steps.setup.outputs.release_name }}
       - name: Fetch Jitpack IO Library
         uses: wei/curl@master
         continue-on-error: true
         with:
           args: --verbose https://jitpack.io/com/github/fadlurahmanfdev/kotlin_feature_identity/${{ github.ref_name }}/kotlin_feature_identity-${{ github.ref_name }}.pom
-          

@@ -1,5 +1,5 @@
 # Description
-Kotlin Feature Identity is a library that handle identity/authentication related, such as biometric, device 
+Mark Authenticator is a library that handle identity/authentication related, such as biometric, device 
 credential, etc.
 
 # Method
@@ -8,105 +8,143 @@ credential, etc.
 
 Deletes an existing key from the Android KeyStore.
 
-| Parameter Name   | Type     | Required | Description                                         |
-|------------------|----------|----------|-----------------------------------------------------|
-| `alias`          | `String` | yes      | The alias of the entry to delete from the KeyStore. |
-
 ## Is Device Support Fingerprint ?
 
 Checks if the device supports fingerprint authentication.
 
-Return true if the device supports fingerprint authentication; false otherwise.
+```kotlin
+val isSupportFingerprint = markAuthenticator.isDeviceSupportFingerprint()
+```
 
 ## Is Device Support Face Auth ?
 
 Checks if the device supports face authentication.
 
-Return true if the device supports face authentication; false otherwise.
+```kotlin
+val isSupportFaceAuth = markAuthenticator.isDeviceSupportFaceAuth()
+```
 
 ## Is Device Support Biometric ?
 
 Checks if the device supports biometric authentication, either fingerprint or face authentication.
 
-Return true if the device supports any biometric feature; false otherwise.
+```kotlin
+val isSupportBiometric = markAuthenticator.isDeviceSupportBiometric()
+```
 
-## Is Fingerprint Enrolled ?
+## Is Biometric Enrolled ?
 
-Checks if the device has at least one fingerprint enrolled.
+Checks if the device has at least one biometric enrolled.
 
-Return true if a fingerprint is enrolled; false otherwise.
+```kotlin
+val isEnrolled = markAuthenticator.isBiometricEnrolled()
+```
 
 ## Is Device Credential Enrolled ?
 
 Determines the device's credential is enrolled (PIN, Password, etc)
 
-Return true, if device's credential already enrolled, otherwise is false.
+```kotlin
+val isEnrolled = markAuthenticator.isDeviceCredentialEnrolled()
+```
 
 ## Check Authenticator Status
 
-Checks the status of the specified authenticator.
-
-| Parameter Name ,      | Type                       | Required | Description                                                 |
-|-----------------------|----------------------------|----------|-------------------------------------------------------------|
-| `authenticatorType`   | `FeatureAuthenticatorType` | yes      | The type of authenticator (biometric or device credential). |
+Checks the authenticator status based on authenticator method (biometric or device credential)
 
 Return:
-- `FeatureAuthenticationStatus.SUCCESS` - if the device can authenticate using the specified authenticator.
-- `FeatureAuthenticationStatus.NONE_ENROLLED` - if the device has no enrolled data for the specified authenticator.
-- `FeatureAuthenticationStatus.NO_HARDWARE` - if the device lacks the hardware for the specified authenticator.
-- `FeatureAuthenticationStatus.UNAVAILABLE` - if the device is currently unable to authenticate with the specified authenticator.
-- `FeatureAuthenticationStatus.SECURITY_UPDATE_REQUIRED` - if a security update is required for the device to authenticate.
-- `FeatureAuthenticationStatus.UNSUPPORTED_OS_VERSION` - if the OS version does not support authentication.
-- `FeatureAuthenticationStatus.UNKNOWN` - if an unknown status is encountered.
+- `MarkAuthenticatorStatus.SUCCESS` - if the device can authenticate using the specified authenticator.
+- `MarkAuthenticatorStatus.NONE_ENROLLED` - if the device has no enrolled data for the specified authenticator.
+- `MarkAuthenticatorStatus.NO_HARDWARE` - if the device lacks the hardware for the specified authenticator.
+- `MarkAuthenticatorStatus.UNAVAILABLE` - if the device is currently unable to authenticate with the specified authenticator.
+- `MarkAuthenticatorStatus.SECURITY_UPDATE_REQUIRED` - if a security update is required for the device to authenticate.
+- `MarkAuthenticatorStatus.UNSUPPORTED_OS_VERSION` - if the OS version does not support authentication.
+- `MarkAuthenticatorStatus.UNKNOWN` - if an unknown status is encountered.
 
-## Check Secure Authentication
-
-Checks the status of secure authentication on the device.
-
-Return:
-- `FeatureAuthenticationStatus.SUCCESS` - if the device can authenticate using the specified authenticator.
-- `FeatureAuthenticationStatus.NONE_ENROLLED` - if the device has no enrolled data for the specified authenticator.
-- `FeatureAuthenticationStatus.NO_HARDWARE` - if the device lacks the hardware for the specified authenticator.
-- `FeatureAuthenticationStatus.UNAVAILABLE` - if the device is currently unable to authenticate with the specified authenticator.
-- `FeatureAuthenticationStatus.SECURITY_UPDATE_REQUIRED` - if a security update is required for the device to authenticate.
-- `FeatureAuthenticationStatus.UNSUPPORTED_OS_VERSION` - if the OS version does not support authentication.
-- `FeatureAuthenticationStatus.UNKNOWN` - if an unknown status is encountered.
+```kotlin
+val biometricAuthenticatorStatus = markAuthenticator.checkAuthenticatorStatus(MarkAuthenticatorMethod.BIOMETRIC)
+val deviceCredentialStatus = markAuthenticator.checkAuthenticatorStatus(MarkAuthenticatorMethod.DEVICE_CREDENTIAL)
+```
 
 ## Can Authenticate
 
-Determines whether the device can authenticate using the specified authenticator.
-
-| Parameter Name ,    | Type                       | Required | Description                                                 |
-|---------------------|----------------------------|----------|-------------------------------------------------------------|
-| `authenticatorType` | `FeatureAuthenticatorType` | yes      | The type of authenticator (biometric or device credential). |
+Determines whether the device can authenticate using the specified authenticator (biometric or device credential).
 
 Return true if the device can authenticate using the specified authenticator; false otherwise.
+
+```kotlin
+val canAuthenticateBiometric = markAuthenticator.canAuthenticate(MarkAuthenticatorMethod.BIOMETRIC)
+val canAuthenticateDeviceCredential = markAuthenticator.canAuthenticate(MarkAuthenticatorMethod.DEVICE_CREDENTIAL)
+```
+
+## Authenticate Using Weak Biometric
+
+Authenticate using biometric authentication (fingerprint or face).
+
+```kotlin
+markAuthenticator.authenticateBiometric(
+    title = "Title Biometric",
+    description = "Desc Biometric",
+    subTitle = "SubTitle Biometric",
+    negativeText = "Negative Text",
+    confirmationRequired = true,
+    callBack = object : WeakAuthenticationCallBack {
+        override fun onSuccessAuthenticate() {
+            // on success authenticate
+        }
+
+        override fun onErrorAuthenticate(exception: MarkAuthenticatorException) {
+            // on error authenticate
+        }
+
+        override fun onFailedAuthenticate() {
+            // on failed authenticate
+        }
+
+        override fun onCanceled() {
+            // on canceled authenticate
+        }
+
+        override fun onNegativeButtonClicked(which: Int) {
+            // on negative button clicked
+        }
+    }
+)
+```
+
 
 ## Authenticate using Device Credential
 
 Authenticate using device credentials.
 
-| Parameter Name         | Type                     | Required | Description                                              |
-|------------------------|--------------------------|----------|----------------------------------------------------------|
-| `title`                | `String`                 | yes      | The title displayed in the device credential prompt.     |
-| `subTitle`             | `String`                 | no       | The sub-title displayed in the device credential prompt. |
-| `description`          | `String`                 | yes      | The description shown in the device credential prompt.   |
-| `negativeText`         | `String`                 | yes      | The text for the cancel button in the prompt.            |
-| `confirmationRequired` | `Boolean`                | yes      | Whether confirmation is required for authentication.     |
-| `callBack`             | `AuthenticationCallBack` | yes      | The callback to handle the authentication.               |
+```kotlin
+markAuthenticator.authenticateDeviceCredential(
+                    activity = this,
+                    title = "Title - Device Credential",
+                    subTitle = "Sub Title - Device Credential",
+                    description = "Desc - Device Credential",
+                    negativeText = "Negative Text",
+                    confirmationRequired = true,
+                    callBack = object : WeakAuthenticationCallBack {
+                        override fun onSuccessAuthenticate() {
+                            // on success authenticate
+                        }
 
-## Authenticate using Biometric
+                        override fun onErrorAuthenticate(exception: MarkAuthenticatorException) {
+                            // on error authenticate
+                        }
 
-Authenticate using biometric authentication (fingerprint or face).
+                        override fun onFailedAuthenticate() {
+                            // on failed authenticate
+                        }
 
-| Parameter Name         | Type                     | Required | Description                                              |
-|------------------------|--------------------------|----------|----------------------------------------------------------|
-| `title`                | `String`                 | yes      | The title displayed in the device credential prompt.     |
-| `subTitle`             | `String`                 | no       | The sub-title displayed in the device credential prompt. |
-| `description`          | `String`                 | yes      | The description shown in the device credential prompt.   |
-| `negativeText`         | `String`                 | yes      | The text for the cancel button in the prompt.            |
-| `confirmationRequired` | `Boolean`                | yes      | Whether confirmation is required for authentication.     |
-| `callBack`             | `AuthenticationCallBack` | yes      | The callback to handle the authentication.               |
+                        override fun onCanceled() {
+                            super.onCanceled()
+                            // on canceled
+                        }
+                    }
+                )
+```
 
 ## Is Biometric Changed ?
 
@@ -115,9 +153,9 @@ Checks if the biometric data on the device has changed.
 A biometric change is detected if new biometric data (e.g., a fingerprint) has been enrolled on the device. 
 Deleting biometric data is not detected as a change.
 
-| Parameter Name  | Type      | Required | Description                                                     |
-|-----------------|-----------|----------|-----------------------------------------------------------------|
-| `alias`         | `String`  | yes      | The alias of the secret key used to verify biometric integrity. |
+```kotlin
+val isBiometricChanged = markAuthenticator.isBiometricChanged("{alias}")
+```
 
 ## Authenticate Encrypt Biometric
 
@@ -127,15 +165,34 @@ This function performs biometric authentication with encryption, using a specifi
 a secret key. The encryption is achieved through a cipher initialized with the secret key. If the key becomes invalid
 (e.g., due to a security change like adding a new fingerprint), the key must be deleted and regenerated.
 
-| Parameter Name         | Type                                  | Required | Description                                                                                                                                                         |
-|------------------------|---------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `alias`                | `String`                              | yes      | The alias of the secret key used for encryption. If the key is invalidated, the user must delete it and generate a new one to continue using secure authentication. |
-| `title`                | `String`                              | yes      | The title displayed in the biometric prompt.                                                                                                                        |
-| `subTitle`             | `String`                              | no       | The description shown in the biometric prompt.                                                                                                                      |
-| `description`          | `String`                              | yes      | The description shown in the device credential prompt.                                                                                                              |
-| `negativeText`         | `String`                              | yes      | The text for the cancel button in the prompt.                                                                                                                       |
-| `confirmationRequired` | `Boolean`                             | yes      | Whether confirmation is required for authentication.                                                                                                                |
-| `callBack`             | `SecureAuthenticationEncryptCallBack` | yes      | The callback to handle the authentication.                                                                                                                          |
+```kotlin
+markAuthenticator.secureAuthenticateBiometricEncrypt(
+                    activity = this,
+                    title = "Title - Encrypt Biometric",
+                    subTitle = "Sub Title - Encrypt Biometric",
+                    description = "Desc - Encrypt Biometric",
+                    negativeText = "Cancel",
+                    alias = "{alias}",
+                    confirmationRequired = false,
+                    callBack = object : SecureAuthenticationEncryptCallBack {
+                        override fun onSuccessAuthenticate(
+                            cipher: Cipher,
+                            encodedIVKey: String
+                        ) {
+                            encodedEncryptedPassword = markAuthenticator.encrypt(cipher, plainText)
+                            this@MainActivity.encodedIvKey = encodedIVKey
+                        }
+
+                        override fun onErrorAuthenticate(exception: MarkAuthenticatorException) {
+                            // on error authenticate
+                        }
+
+                        override fun onFailedAuthenticate() {
+                            // on failed authenticate
+                        }
+                    }
+                )
+```
 
 
 ## Authenticate Decrypt Biometric
@@ -146,13 +203,30 @@ This method decrypts data using a biometric-protected secret key. If the key is 
 (e.g., due to biometric changes like adding a new fingerprint), it cannot be used for decryption.
 In such cases, users must generate a new key and re-encrypt the data.
 
-| Parameter Name          | Type                                  | Required | Description                                                                                                                                                         |
-|-------------------------|---------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `alias`                 | `String`                              | yes      | The alias of the secret key used for encryption. If the key is invalidated, the user must delete it and generate a new one to continue using secure authentication. |
-| `encodedIVKey`          | `String`                              | yes      | The IV key obtained from encryption, encoded as a string.                                                                                                           |
-| `title`                 | `String`                              | yes      | The title displayed in the biometric prompt.                                                                                                                        |
-| `subTitle`              | `String`                              | no       | The description shown in the biometric prompt.                                                                                                                      |
-| `description`           | `String`                              | yes      | The description shown in the device credential prompt.                                                                                                              |
-| `negativeText`          | `String`                              | yes      | The text for the cancel button in the prompt.                                                                                                                       |
-| `confirmationRequired`  | `Boolean`                             | yes      | Whether confirmation is required for authentication.                                                                                                                |
-| `callBack`              | `SecureAuthenticationEncryptCallBack` | yes      | The callback to handle the authentication.                                                                                                                          |
+```kotlin
+markAuthenticator.secureAuthenticateBiometricDecrypt(
+                    activity = this,
+                    alias = "{key alias}",
+                    encodedIVKey = encodedIvKey,
+                    title = "Title - Decrypt Biometric",
+                    subTitle = "Sub Title - Decrypt Biometric",
+                    description = "Desc - Decrypt Biometric",
+                    negativeText = "Cancel",
+                    confirmationRequired = false,
+                    callBack = object : SecureAuthenticationDecryptCallBack {
+                        override fun onSuccessAuthenticate(cipher: Cipher) {
+                            val plainPassword =
+                                markAuthenticator.decrypt(cipher, encodedEncryptedPassword)
+                            // on success authenticate
+                        }
+
+                        override fun onErrorAuthenticate(exception: MarkAuthenticatorException) {
+                            // on error authenticate
+                        }
+
+                        override fun onFailedAuthenticate() {
+                            // on failed authenticate
+                        }
+                    }
+                )
+```
