@@ -6,3 +6,6 @@ push_commands = [
 
 [pr_code_suggestions]
 enable_chat_in_code_suggestions = true
+
+[config]
+allow_only_specific_folders=['.github','app', 'gradle', 'mark_authenticator']
