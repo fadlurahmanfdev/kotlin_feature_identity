@@ -3,3 +3,6 @@ handle_push_trigger = true
 push_commands = [
     "/agentic_review"
 ]
+
+[pr_code_suggestions]
+enable_chat_in_code_suggestions = true
