@@ -1,0 +1,5 @@
+[github_app]
+handle_push_trigger = true
+push_commands = [
+    "/agentic_review"
+]
